@@ -1,0 +1,29 @@
+agents:
+  unprotected:
+    description: "Simulates a typical Gmail connector: full, unfiltered access. Demo 'before' only."
+    passthrough: true
+    max_results: 50
+  work-agent:
+    description: "Claude helping with work tasks"
+    protection_level: standard
+    max_results: 20
+
+    access:
+      work: allow
+      travel: allow
+      promo: allow
+      personal: ask
+      finance: ask
+      other: ask
+      health: deny
+      auth: deny
+    custom_rules:
+      - name: compensation
+        pattern: '(?i)\$\s?\d{2,3}(?:,\d{3})+(?:\s?(?:/yr|per year|base|salary))?'
+  strict-agent:
+    description: "Untrusted third-party agent"
+    protection_level: strict
+    max_results: 5
+    access:
+      travel: allow
+      promo: allow
