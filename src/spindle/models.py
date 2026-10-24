@@ -31,6 +31,15 @@ class Classification(BaseModel):
     reason: str
 
 
+class LLMResult(BaseModel):
+    category: Category
+    sensitivity: Literal["low", "medium", "high"]
+    injection_suspected: bool
+    injection_confidence: float = 0.0
+    reason: str
+
+
+
 class InjectionReport(BaseModel):
     hidden_text: bool
     hidden_text_excerpt: str = ""

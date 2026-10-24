@@ -52,8 +52,9 @@ class Config:
 
         # 6. LLM config
         self.llm_base_url = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
-        self.llm_model = os.environ.get("LLM_MODEL", "muse-spark-1.3" if "meta.ai" in self.llm_base_url else "qwen3.5:2b")
+        self.llm_model = os.environ.get("LLM_MODEL", "muse-spark-1.3" if "meta.ai" in self.llm_base_url else "llama3.2:1b")
         self.llm_api_key = os.environ.get("LLM_API_KEY", "ollama")
+
         self.llm_timeout = float(os.environ.get("LLM_TIMEOUT", "20"))
         self.llm_enabled = os.environ.get("LLM_ENABLED", "true").lower() in ("true", "1", "yes")
 

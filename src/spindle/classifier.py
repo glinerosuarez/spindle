@@ -83,9 +83,11 @@ def classify(
     use_cache: bool = True,
 ) -> Tuple[Classification, Any | None]:
     """Classifies an email using deterministic override, rules first, and LLM fallback."""
+    content_hash = hashlib.sha256((email.subject + email.body_text).encode("utf-8")).hexdigest()
     content_str = f"{email.subject}\n{email.body_text}"
-    content_hash = hashlib.sha256(content_str.encode("utf-8")).hexdigest()
     model_name = config.llm_model
+
+
 
     # 0. Check cache if enabled
     if use_cache:
@@ -116,11 +118,21 @@ def classify(
 
     # 3. LLM classification if enabled
     llm_result = None
-    if config.llm_enabled and llm_classifier is not None:
-        try:
-            llm_result = llm_classifier(email)
-        except Exception:
-            llm_result = None
+    if config.llm_enabled:
+        fn = llm_classifier
+        if fn is None:
+            try:
+                from spindle.llm import classify_email
+                fn = classify_email
+            except ImportError:
+                fn = None
+
+        if fn is not None:
+            try:
+                llm_result = fn(email)
+            except Exception:
+                llm_result = None
+
 
     # Determine final category
     if rule_category is not None:
