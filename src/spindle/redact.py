@@ -83,12 +83,7 @@ def redact(
     current = url_re.sub(replace_auth_link, current)
 
     # 2. otp (all levels)
-    # 4-8 digit number within 60 chars of code, verification, OTP, passcode, one-time or 2FA
-    # Also a subject starting with ^\d{4,8} is your
-    otp_kw = re.compile(
-        r"(?<!confirmation\s)(?<!promo\s)(?<!discount\s)(?<!zip\s)(?<!area\s)\b(?:code|verification|otp|passcode|one-time|2fa)\b",
-        re.IGNORECASE,
-    )
+    # Subject starting with ^\d{4,8} is your
     otp_subject_re = re.compile(r"^(\d{4,8})(\s+is\s+your)", re.IGNORECASE | re.MULTILINE)
 
     def replace_otp_subject(match: re.Match) -> str:
@@ -97,27 +92,40 @@ def redact(
 
     current = otp_subject_re.sub(replace_otp_subject, current)
 
-    # Now look for general 4-8 digit numbers within 60 chars of keyword
+    # Strong keywords required within 30 characters
+    strong_otp_kw = re.compile(
+        r"(?i)\b(?:verification|verify|otp|passcode|one-time|2fa|security\s+code|login\s+code|sign-in\s+code|your\s+code|code\s+is)\b|code\s*:",
+        re.IGNORECASE,
+    )
+    # Preceding identifiers to skip: #, PR, order, invoice, ticket, flight, room, ext, suite, apt
+    preceding_skip = re.compile(
+        r"(?i)(?:#|pr|order|invoice|ticket|flight|room|ext|suite|apt)\s*#?\s*$",
+        re.IGNORECASE,
+    )
+
     def replace_otp(match: re.Match) -> str:
         digits = match.group(0)
         start, end = match.span()
 
-        # Ignore flight numbers (e.g. Flight UA 1487)
-        lookbehind = current[max(0, start - 20):start]
-        if re.search(r"(?i)\bflight\s+(?:[a-z]{2}\s+)?$", lookbehind):
+        # 1. Skip 4-digit years (19xx, 20xx)
+        if len(digits) == 4 and (digits.startswith("19") or digits.startswith("20")):
             return digits
 
-        # Look behind 60 chars and look ahead 60 chars in current
-        window_start = max(0, start - 60)
-        window_end = min(len(current), end + 60)
+        # 2. Skip if comes right after #, PR, order, invoice, ticket, flight, room, ext, suite, apt
+        lookbehind = current[max(0, start - 30):start]
+        if preceding_skip.search(lookbehind):
+            return digits
+
+        # 3. Check for strong keyword within 30 chars
+        window_start = max(0, start - 30)
+        window_end = min(len(current), end + 30)
         context = current[window_start:window_end]
-        if otp_kw.search(context):
+        if strong_otp_kw.search(context):
             record("otp")
             return "[REDACTED:otp]"
+
         return digits
 
-
-    # Only match standalone numbers that are 4-8 digits
     current = re.sub(r"(?<![A-Za-z0-9_-])\d{4,8}(?![A-Za-z0-9_-])", replace_otp, current)
 
     # 3. api_key / password (all levels)

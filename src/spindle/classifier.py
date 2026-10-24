@@ -118,7 +118,7 @@ def classify(
 
     # 3. LLM classification if enabled
     llm_result = None
-    if config.llm_enabled:
+    if config.llm_enabled or llm_classifier is not None:
         fn = llm_classifier
         if fn is None:
             try:

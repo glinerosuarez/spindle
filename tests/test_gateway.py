@@ -155,9 +155,12 @@ def test_cli_approval_tool():
     assert "request #" in read_res
     req_id = int(read_res.split("request #")[1].split(")")[0])
 
-    # 2. Run CLI approval
+    # 2. Run CLI approval in the isolated test home
+    import os
+    env = {**os.environ, "SPINDLE_HOME": str(config.home)}
     subprocess.run(
         ["uv", "run", "python", "-m", "spindle.store", "approve", str(req_id)],
+        env=env,
         check=True,
     )
 

@@ -80,10 +80,24 @@ def search(
     ask_categories: List[str] = []
 
     for email in emails:
-        cls, llm_result = classify(email)
-        inj = inspect_injection(email, llm_result)
-        approval_status = get_approval_status(agent, email.id)
-        decision: Decision = decide(agent, policy, cls, inj, approval_status)
+        try:
+            cls, llm_result = classify(email)
+            inj = inspect_injection(email, llm_result)
+            approval_status = get_approval_status(agent, email.id)
+            decision: Decision = decide(agent, policy, cls, inj, approval_status)
+        except Exception:
+            quarantined_entries.append((email, "processing error"))
+            log_audit(
+                agent=agent,
+                tool="search",
+                query=query,
+                email_id=email.id,
+                category="other",
+                action="quarantine",
+                reason="processing error",
+                redactions=[],
+            )
+            continue
 
         if decision.action == "passthrough":
             # Handled above, but safeguard
@@ -322,10 +336,23 @@ def read(
         )
 
     # 2. Governed mode
-    cls, llm_result = classify(email)
-    inj = inspect_injection(email, llm_result)
-    approval_status = get_approval_status(agent, email.id)
-    decision = decide(agent, policy, cls, inj, approval_status)
+    try:
+        cls, llm_result = classify(email)
+        inj = inspect_injection(email, llm_result)
+        approval_status = get_approval_status(agent, email.id)
+        decision = decide(agent, policy, cls, inj, approval_status)
+    except Exception:
+        log_audit(
+            agent=agent,
+            tool="read",
+            query=email_id,
+            email_id=email.id,
+            category="other",
+            action="quarantine",
+            reason="processing error",
+            redactions=[],
+        )
+        return f"[QUARANTINED] Email from {email.sender} ({email.date[:10]}) was quarantined: processing error. Content withheld."
 
     if decision.action == "quarantine":
         log_audit(

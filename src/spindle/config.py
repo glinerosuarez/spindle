@@ -52,23 +52,20 @@ class Config:
 
         # 6. LLM config
         self.llm_base_url = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
-        self.llm_model = os.environ.get("LLM_MODEL", "muse-spark-1.3" if "meta.ai" in self.llm_base_url else "llama3.2:1b")
+        self.llm_model = os.environ.get("LLM_MODEL", "qwen3.5:2b")
         self.llm_api_key = os.environ.get("LLM_API_KEY", "ollama")
 
         self.llm_timeout = float(os.environ.get("LLM_TIMEOUT", "20"))
         self.llm_enabled = os.environ.get("LLM_ENABLED", "true").lower() in ("true", "1", "yes")
 
-        # Check calhacks/.env fallback for META_DEV_API_KEY if needed
-        if (not self.llm_api_key or self.llm_api_key == "ollama") and "meta.ai" in self.llm_base_url:
-            calhacks_env = app_dir.parent / "calhacks" / ".env"
-            if calhacks_env.exists():
-                for line in calhacks_env.read_text().splitlines():
-                    if line.startswith("META_DEV_API_KEY="):
-                        self.llm_api_key = line.split("=", 1)[1].strip()
-
         # Claude API
         self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         self.claude_model = os.environ.get("SPINDLE_CLAUDE_MODEL", "claude-opus-5-5")
+
+    def llm_is_local(self) -> bool:
+        """Returns True if the LLM endpoint is on localhost/127.0.0.1."""
+        url = self.llm_base_url.lower()
+        return "localhost" in url or "127.0.0.1" in url or "0.0.0.0" in url
 
 
 config = Config()

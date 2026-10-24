@@ -116,6 +116,7 @@ async def index(
             "token": _AUTH_TOKEN,
             "policy_file": policy_file,
             "agent": config.agent,
+            "llm_is_local": config.llm_is_local(),
         },
     )
 
@@ -426,11 +427,19 @@ async def apply_assistant_policy(
 
 
 def main():
-
     import uvicorn
+
+    llm_type = "local" if config.llm_is_local() else "cloud"
+    logger.info(
+        "Starting Spindle Dashboard (LLM endpoint: %s [%s], model: %s)...",
+        config.llm_base_url,
+        llm_type,
+        config.llm_model,
+    )
 
     print(f"\n==================================================================")
     print(f"  Spindle Privacy Gateway Dashboard")
+    print(f"  Classifier: {llm_type} ({config.llm_model} at {config.llm_base_url})")
     print(f"  Startup Token: {_AUTH_TOKEN}")
     print(f"  Dashboard URL: http://127.0.0.1:{config.dashboard_port}/?token={_AUTH_TOKEN}")
     print(f"==================================================================\n")

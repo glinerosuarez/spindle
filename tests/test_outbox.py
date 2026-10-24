@@ -11,15 +11,6 @@ from spindle.store import (
 )
 
 
-@pytest.fixture(autouse=True)
-def setup_outbox_db(tmp_path, monkeypatch):
-    test_db = tmp_path / "test_outbox.db"
-    monkeypatch.setattr(config, "db_path", test_db)
-    monkeypatch.setattr(config, "approval_timeout", 0)
-    init_db(test_db)
-    yield test_db
-
-
 def test_send_email_allowlist_success():
     res = send_email(
         agent="work-agent",

@@ -74,7 +74,14 @@ def my_permissions() -> str:
 
 def main() -> None:
     agent = os.environ.get("SPINDLE_AGENT", config.agent)
-    logger.info("Starting Spindle MCP server over stdio for agent '%s'...", agent)
+    llm_type = "local" if config.llm_is_local() else "cloud"
+    logger.info(
+        "Starting Spindle MCP server over stdio for agent '%s' (LLM endpoint: %s [%s], model: %s)...",
+        agent,
+        config.llm_base_url,
+        llm_type,
+        config.llm_model,
+    )
     server.run("stdio")
 
 

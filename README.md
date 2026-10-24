@@ -171,6 +171,7 @@ In the dashboard's **Policy Assistant** panel, type in plain English:
 | **Dashboard** | **Real** | FastAPI + SQLite WAL + vendored HTMX + CSRF/Token cookie authentication + real-time Outbox monitor. |
 | **Policy Assistant** | **Real** | Anthropic Claude structured parsing + deterministic diff engine with loosening safety gate. |
 | **Inbox Data** | **Realistic Fixtures** | 17 handcrafted emails for fictional persona **Alex Rivera** (`alex.rivera@northwind.io`) at Northwind. Includes realistic prompt injections modeling CVE-2025-32711 and tiny CSS text. Zero personal user data. |
+| **Classifier** | **Real** | Local by default via Ollama; cloud Muse is supported for development. Deterministic rule overrides for auth/OTP take precedence. |
 | **Unprotected Agent** | **Simulated** | Agent configured with `passthrough: true` to demonstrate what an ordinary Gmail connector exposes to LLMs. |
 
 ---
