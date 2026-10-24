@@ -216,3 +216,25 @@ def test_b2_unexplained_change_raises_error():
     with patch.object(AgentPolicy, "model_dump", mock_dump):
         with pytest.raises(PolicyAssistantError, match="Unexplained policy change"):
             compute_policy_diff(old_pol, unexplained_pol)
+
+
+def test_b7_reordered_lists_no_error():
+    # Multi-item custom_rules and send_allow
+    old_pol = make_sample_policy()
+    old_pol.agents["work-agent"].custom_rules = [
+        CustomRule(name="comp", pattern=r"\$\d+"),
+        CustomRule(name="ssn", pattern=r"\d{3}-\d{2}-\d{4}"),
+    ]
+    old_pol.agents["work-agent"].send_allow = ["@northwind.io", "@partner.com"]
+
+    # New policy with reversed list orders
+    new_pol = make_sample_policy()
+    new_pol.agents["work-agent"].custom_rules = [
+        CustomRule(name="ssn", pattern=r"\d{3}-\d{2}-\d{4}"),
+        CustomRule(name="comp", pattern=r"\$\d+"),
+    ]
+    new_pol.agents["work-agent"].send_allow = ["@partner.com", "@northwind.io"]
+
+    changes = compute_policy_diff(old_pol, new_pol)
+    assert len(changes) == 0
+

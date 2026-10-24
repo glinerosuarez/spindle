@@ -171,11 +171,38 @@ def test_otp_a4b_spaced_and_expiring_wording():
     cls2, _ = classify(e2)
     assert cls2.category == "auth"
 
-    # 3. Spaced hyphenated OTP: "482-913"
-    t3 = "Your verification code is 482-913"
+    # 3. B6 Date shapes and meeting IDs not redacted as OTP
+    t3 = "Verify the Q3 totals by 2026-10-30"
     r3, _ = redact(t3, level="standard")
-    assert "[REDACTED:otp]" in r3
-    assert "482-913" not in r3
+    assert "[REDACTED:otp]" not in r3
+    assert "2026-10-30" in r3
+
+    t4 = "verify the launch date: 10-30 works"
+    r4, _ = redact(t4, level="standard")
+    assert "[REDACTED:otp]" not in r4
+    assert "10-30" in r4
+
+    # 4. Northwind work email with both sentences classifies as work (not auth)
+    e_work_dates = Email(
+        id="e_dates",
+        thread_id="t_dates",
+        sender="priya@northwind.io",
+        to="alex.rivera@northwind.io",
+        subject="Sprint milestones and launch date",
+        date="2026-10-24T12:00:00Z",
+        snippet="Verify the Q3 totals by 2026-10-30",
+        body_text="Verify the Q3 totals by 2026-10-30. Also verify the launch date: 10-30 works.",
+        body_html=None,
+        labels=["INBOX"],
+    )
+    cls_d, _ = classify(e_work_dates)
+    assert cls_d.category == "work"
+
+    # 5. Meeting ID with 11 digits unchanged
+    t5 = "Use this link to join, meeting ID 8823 4417 902"
+    r5, _ = redact(t5, level="standard")
+    assert "[REDACTED:otp]" not in r5
+    assert "8823 4417 902" in r5
 
 
 def test_classify_work_email_with_code_freeze_not_auth():

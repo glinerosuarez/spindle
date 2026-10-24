@@ -103,6 +103,50 @@ def redact(
         re.IGNORECASE,
     )
 
+    date_shape = re.compile(
+        r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b",
+        re.IGNORECASE,
+    )
+
+    def is_inside_date(start_idx: int, end_idx: int) -> bool:
+        for m in date_shape.finditer(current):
+            if not (end_idx <= m.start() or start_idx >= m.end()):
+                return True
+        return False
+
+    def replace_spaced_otp(match: re.Match) -> str:
+        matched_str = match.group(0)
+        digits = re.sub(r"[^\d]", "", matched_str)
+        # 1. Total must be 6-8 digits
+        if not (6 <= len(digits) <= 8):
+            return matched_str
+
+        # 2. Skip if any group is a 4-digit year (19xx, 20xx)
+        parts = matched_str.split(" ")
+        if any(len(p) == 4 and (p.startswith("19") or p.startswith("20")) for p in parts):
+            return matched_str
+
+        start, end = match.span()
+
+        # 3. Skip if inside or overlapping date shape
+        if is_inside_date(start, end):
+            return matched_str
+
+        # 4. Skip if comes right after #, PR, order, invoice, ticket, etc.
+        lookbehind = current[max(0, start - 30):start]
+        if preceding_skip.search(lookbehind):
+            return matched_str
+
+        # 5. Check for strong keyword within 30 chars
+        window_start = max(0, start - 30)
+        window_end = min(len(current), end + 30)
+        context = current[window_start:window_end]
+        if strong_otp_kw.search(context):
+            record("otp")
+            return "[REDACTED:otp]"
+
+        return matched_str
+
     def replace_otp(match: re.Match) -> str:
         matched_str = match.group(0)
         digits = re.sub(r"[^\d]", "", matched_str)
@@ -115,12 +159,16 @@ def redact(
         if len(digits) == 4 and (digits.startswith("19") or digits.startswith("20")):
             return matched_str
 
-        # 2. Skip if comes right after #, PR, order, invoice, ticket, flight, room, ext, suite, apt
+        # 2. Skip if inside or overlapping date shape
+        if is_inside_date(start, end):
+            return matched_str
+
+        # 3. Skip if comes right after #, PR, order, invoice, ticket, flight, room, ext, suite, apt
         lookbehind = current[max(0, start - 30):start]
         if preceding_skip.search(lookbehind):
             return matched_str
 
-        # 3. Check for strong keyword within 30 chars
+        # 4. Check for strong keyword within 30 chars
         window_start = max(0, start - 30)
         window_end = min(len(current), end + 30)
         context = current[window_start:window_end]
@@ -130,8 +178,8 @@ def redact(
 
         return matched_str
 
-    # Redact spaced-digit OTPs first (e.g. 48 29 13 or 482-913)
-    current = re.sub(r"\b\d{2,4}(?:[ -]\d{2,4}){1,3}\b", replace_otp, current)
+    # Redact spaced-digit OTPs first (spaces only, 6-8 digits total, e.g. 48 29 13)
+    current = re.sub(r"\b\d{2,4}(?: \d{2,4}){1,3}\b", replace_spaced_otp, current)
     # Redact contiguous 4-8 digit OTPs
     current = re.sub(r"(?<![A-Za-z0-9_-])\d{4,8}(?![A-Za-z0-9_-])", replace_otp, current)
 

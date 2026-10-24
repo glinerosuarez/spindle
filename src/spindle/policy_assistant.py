@@ -310,6 +310,17 @@ def compute_policy_diff(old_policy: PolicyFile, new_policy: PolicyFile) -> List[
             new_agent = new_policy.agents[agent_name]
             old_dump = old_agent.model_dump()
             new_dump = new_agent.model_dump()
+
+            # Normalize order-independent collections
+            if "custom_rules" in old_dump:
+                old_dump["custom_rules"] = {r["name"]: r["pattern"] for r in old_dump["custom_rules"]}
+            if "custom_rules" in new_dump:
+                new_dump["custom_rules"] = {r["name"]: r["pattern"] for r in new_dump["custom_rules"]}
+            if "send_allow" in old_dump:
+                old_dump["send_allow"] = sorted(old_dump["send_allow"])
+            if "send_allow" in new_dump:
+                new_dump["send_allow"] = sorted(new_dump["send_allow"])
+
             for k in set(old_dump.keys()) | set(new_dump.keys()):
                 if old_dump.get(k) != new_dump.get(k):
                     covered = False
