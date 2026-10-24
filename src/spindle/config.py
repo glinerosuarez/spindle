@@ -29,6 +29,10 @@ class Config:
         home_str = os.environ.get("SPINDLE_HOME", "~/.spindle")
         self.home = Path(os.path.expanduser(home_str)).resolve()
         self.home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            os.chmod(self.home, 0o700)
+        except Exception:
+            pass
 
         # 3. Paths
         self.db_path = self.home / "spindle.db"

@@ -28,7 +28,11 @@ server = MCPServer("spindle")
 
 
 @server.tool(
-    description="Search the user's inbox. Standard Gmail operators like newer_than:7d are accepted. Returns a summary of matching messages."
+    description=(
+        "Search the user's inbox. Standard Gmail operators like newer_than:7d are accepted. "
+        "Returns a summary of matching messages. Results are filtered by the user's Spindle "
+        "privacy policy; withheld items are listed with reasons."
+    )
 )
 def search_email(query: str = "", max_results: Optional[int] = None) -> str:
     agent = os.environ.get("SPINDLE_AGENT", config.agent)
@@ -37,7 +41,10 @@ def search_email(query: str = "", max_results: Optional[int] = None) -> str:
 
 
 @server.tool(
-    description="Read the full contents of one email by ID."
+    description=(
+        "Read the full contents of one email by ID. Results are filtered by the user's "
+        "Spindle privacy policy; withheld items are listed with reasons."
+    )
 )
 def read_email(email_id: str) -> str:
     agent = os.environ.get("SPINDLE_AGENT", config.agent)

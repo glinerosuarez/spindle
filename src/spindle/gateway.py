@@ -613,7 +613,7 @@ def check_approval(agent: str, request_id: int) -> str:
     """Checks the status of an approval request."""
     init_db()
     req = get_approval_request(request_id)
-    if not req:
+    if not req or req.get("agent") != agent:
         return f"Request #{request_id} not found."
 
     status = req["status"]

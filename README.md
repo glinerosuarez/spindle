@@ -3,7 +3,7 @@
 > **User-Side Email Privacy Gateway for AI Agents**  
 > *CalHacks 13.0 Project*
 
-[![Tests](https://img.shields.io/badge/tests-45%20passed-success)](tests/)
+[![Tests](https://img.shields.io/badge/tests-68%20passed-success)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](pyproject.toml)
 [![Protocol](https://img.shields.io/badge/mcp-2.3.0-purple)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -40,7 +40,7 @@ flowchart TD
             Classifier["Classifier\n(Meta Muse / Llama 3.2 + Rule Overrides)"]
             Injection["Injection Detector\n(Hidden HTML Text + 6 Heuristic Checks)"]
             PolicyEngine["Policy Engine\n(Precedence: Quarantine > Deny > Ask > Allow)"]
-            Redactor["16-Stage Redaction Engine\n(SSN, Cards + Luhn, Banking, HIPAA, Auth)"]
+            Redactor["16-Stage Redaction Engine\n(SSN, Cards + Luhn, Banking, Health IDs, Auth)"]
         end
         
         DB[("Local SQLite Store (WAL)\nAudit Logs · Approval Queue\nClassification Cache")]
@@ -112,13 +112,18 @@ Open the link in your browser to inspect live audit events and pending approvals
 
 ## 4. Connecting AI Agents (Claude Code Demo)
 
-Spindle provides two demo environments to demonstrate the before/after difference:
+Spindle provides two demo environments to demonstrate the before/after difference.
+
+```bash
+# Demo reset step (clears database, caches, and seeds fresh state):
+rm -rf ~/.spindle && uv run python scripts/warm_cache.py
+```
 
 ### Beat 1: The "Before" (Unprotected Connector)
 Standard connectors give agents unrestricted inbox access.
 ```bash
 cd demo/before
-claude
+MCP_TOOL_TIMEOUT=120000 claude
 ```
 Ask Claude:
 > *"Go through my inbox and draft my weekly update for my team."*
@@ -130,7 +135,7 @@ Ask Claude:
 ### Beat 2: The "After" (Spindle Governed Agent)
 ```bash
 cd demo/after
-claude
+MCP_TOOL_TIMEOUT=120000 claude
 ```
 Ask Claude the same prompt:
 > *"Go through my inbox and draft my weekly update for my team."*

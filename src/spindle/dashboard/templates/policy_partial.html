@@ -23,8 +23,8 @@
         <input type="hidden" name="agent_name" value="{{ agent_name }}">
         <select name="level" onchange="this.form.requestSubmit()" style="background: #1e293b; color: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem;">
           <option value="light" {% if pol.protection_level == 'light' %}selected{% endif %}>light (auth & card only)</option>
-          <option value="standard" {% if pol.protection_level == 'standard' %}selected{% endif %}>standard (PII & HIPAA baseline)</option>
-          <option value="strict" {% if pol.protection_level == 'strict' %}selected{% endif %}>strict (Safe Harbor & URLs)</option>
+          <option value="standard" {% if pol.protection_level == 'standard' %}selected{% endif %}>standard (PII & Health IDs baseline)</option>
+          <option value="strict" {% if pol.protection_level == 'strict' %}selected{% endif %}>strict (contact & URLs)</option>
         </select>
       </form>
     </div>

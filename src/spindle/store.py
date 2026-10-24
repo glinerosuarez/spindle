@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +13,16 @@ from spindle.models import Classification, InjectionReport, Redaction
 
 def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     path = db_path or config.db_path
+    newly_created = not path.exists()
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA busy_timeout=5000;")
+    if newly_created and path.exists():
+        try:
+            os.chmod(path, 0o600)
+        except Exception:
+            pass
     return conn
 
 
