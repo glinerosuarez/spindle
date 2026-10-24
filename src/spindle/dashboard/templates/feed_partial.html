@@ -1,0 +1,71 @@
+{% if not audit_events %}
+<p style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">No audit records logged yet. Query the inbox via Claude Code or MCP to see live events.</p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Agent</th>
+      <th>Category</th>
+      <th>Action</th>
+      <th>Redactions / Signals</th>
+      <th>Subject</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ev in audit_events %}
+    <tr class="clickable" hx-get="/inspect/{{ ev.id }}" hx-target="#inspector-container" hx-swap="innerHTML">
+      <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">{{ ev.ts[11:19] }}</td>
+      <td><strong>{{ ev.agent }}</strong></td>
+      <td><span style="font-size: 0.75rem; color: #cbd5e1;">{{ ev.category }}</span></td>
+      <td>
+        {% if ev.action == 'allow' %}
+          <span class="badge badge-allow">Allowed</span>
+        {% elif ev.action == 'ask' %}
+          <span class="badge badge-ask">Pending</span>
+        {% elif ev.action == 'deny' %}
+          <span class="badge badge-deny">Withheld</span>
+        {% elif ev.action == 'quarantine' %}
+          <span class="badge badge-quarantine">Quarantined</span>
+        {% elif ev.action == 'passthrough' %}
+          <span class="badge badge-passthrough">⚠️ UNPROTECTED</span>
+        {% else %}
+          <span class="badge">{{ ev.action }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if ev.action == 'passthrough' %}
+          <span style="font-size: 0.75rem; color: #f87171; font-weight: bold;">Exposed: </span>
+          {% if ev.redactions %}
+            {% for r in ev.redactions %}
+              <span class="chip chip-exposed">{{ r.type }} ×{{ r.count }}</span>
+            {% endfor %}
+          {% else %}
+            <span style="font-size: 0.75rem; color: var(--text-muted);">none</span>
+          {% endif %}
+        {% else %}
+          {% if ev.redactions %}
+            {% for r in ev.redactions %}
+              <span class="chip">{{ r.type }} ×{{ r.count }}</span>
+            {% endfor %}
+          {% endif %}
+          {% if ev.injection and ev.injection.quarantine %}
+            <span class="chip" style="color: #f87171; border-color: #ef4444;">injection blocked</span>
+          {% endif %}
+          {% if not ev.redactions and (not ev.injection or not ev.injection.quarantine) %}
+            <span style="font-size: 0.75rem; color: var(--text-muted);">-</span>
+          {% endif %}
+        {% endif %}
+      </td>
+      <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem;">
+        {% if ev.action == 'quarantine' %}
+          <span style="color: #f87171; font-style: italic;">[Subject withheld: prompt injection]</span>
+        {% else %}
+          {{ ev.email_subject or ev.query }}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

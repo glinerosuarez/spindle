@@ -1,0 +1,58 @@
+<div style="display: flex; flex-direction: column; gap: 1.25rem;">
+  {% for agent_name, pol in policy_file.agents.items() %}
+  <div style="background-color: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <span style="font-weight: bold; color: var(--primary);">{{ agent_name }}</span>
+      {% if pol.passthrough %}
+        <span class="badge badge-passthrough">UNPROTECTED</span>
+      {% else %}
+        <span class="badge badge-allow">PROTECTED</span>
+      {% endif %}
+    </div>
+
+    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+      {{ pol.description or "No description provided." }}
+    </p>
+
+    {% if not pol.passthrough %}
+    <!-- Protection Level Selector -->
+    <div style="margin-bottom: 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
+      <span style="color: var(--text-muted);">Protection Level:</span>
+      <form hx-post="/policy/update_level" hx-target="#policy-container" hx-swap="innerHTML" style="display: inline-flex; gap: 0.5rem;">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="agent_name" value="{{ agent_name }}">
+        <select name="level" onchange="this.form.requestSubmit()" style="background: #1e293b; color: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem;">
+          <option value="light" {% if pol.protection_level == 'light' %}selected{% endif %}>light (auth & card only)</option>
+          <option value="standard" {% if pol.protection_level == 'standard' %}selected{% endif %}>standard (PII & HIPAA baseline)</option>
+          <option value="strict" {% if pol.protection_level == 'strict' %}selected{% endif %}>strict (Safe Harbor & URLs)</option>
+        </select>
+      </form>
+    </div>
+
+    <!-- Category Access Table -->
+    <div style="margin-bottom: 0.5rem;">
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">CATEGORY ACCESS</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+        {% for cat, act in pol.access.items() %}
+          <span style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: #1e293b; border: 1px solid var(--border);">
+            {{ cat }}: <strong style="color: {% if act == 'allow' %}#34d399{% elif act == 'ask' %}#fbbf24{% else %}#ef4444{% endif %};">{{ act }}</strong>
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if pol.custom_rules %}
+    <div style="margin-top: 0.5rem;">
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">CUSTOM RULES</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+        {% for cr in pol.custom_rules %}
+          <span class="chip">{{ cr.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>

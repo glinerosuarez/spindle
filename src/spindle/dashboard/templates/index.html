@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid-container">
+  <!-- Left Column: Approvals and Live Feed -->
+  <div class="left-col">
+    <!-- 1. Approval Queue -->
+    <div class="card" id="approval-queue-card">
+      <div class="card-title">
+        <span>Pending Approvals</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Real-time gating</span>
+      </div>
+      <div id="approvals-container" hx-get="/approvals" hx-trigger="load, every 2s" hx-swap="innerHTML">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Checking for pending approval requests...</p>
+      </div>
+    </div>
+
+    <!-- 2. Live Audit Feed -->
+    <div class="card">
+      <div class="card-title">
+        <span>Live Gateway Audit Feed</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Auto-refreshes every 2s</span>
+      </div>
+      <div id="feed-container" hx-get="/feed" hx-trigger="load, every 2s" hx-swap="innerHTML">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Connecting to gateway audit log...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Inspector & Policy Controls -->
+  <div class="right-col">
+    <!-- 3. Email Inspector -->
+    <div class="card">
+      <div class="card-title">
+        <span>Email Inspector</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Click any feed row</span>
+      </div>
+      <div id="inspector-container">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Click any row in the audit feed to inspect the original email vs what the AI agent saw.</p>
+      </div>
+    </div>
+
+    <!-- 4. Policy Manager -->
+    <div class="card">
+      <div class="card-title">
+        <span>Agent Policies</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Zero-restart reload</span>
+      </div>
+      <div id="policy-container" hx-get="/policies" hx-trigger="load" hx-swap="innerHTML">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Loading policies...</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

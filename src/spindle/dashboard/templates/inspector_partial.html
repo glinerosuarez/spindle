@@ -1,0 +1,50 @@
+<div style="display: flex; flex-direction: column; gap: 1rem;">
+  <!-- Header / Metadata -->
+  <div style="background-color: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border); font-size: 0.8rem;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+      <span>Audit ID: <strong>#{{ audit.id }}</strong></span>
+      <span>Agent: <strong>{{ audit.agent }}</strong></span>
+      <span>Action: <strong>{{ audit.action }}</strong></span>
+    </div>
+    <div style="color: var(--text-muted);">
+      Reason: <span style="color: #cbd5e1;">{{ audit.reason }}</span>
+    </div>
+  </div>
+
+  {% if audit.injection and audit.injection.quarantine %}
+  <!-- Quarantine Alert -->
+  <div style="background-color: #450a0a; border: 1px solid #ef4444; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem;">
+    <div style="color: #f87171; font-weight: bold; margin-bottom: 0.25rem;">
+      🚨 PROMPT INJECTION QUARANTINED
+    </div>
+    <div style="color: #fca5a5; margin-bottom: 0.5rem;">
+      {{ audit.injection.reason }}
+    </div>
+    {% if audit.injection.hidden_text_excerpt %}
+    <div style="background-color: #1c0505; padding: 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.75rem; color: #fecaca; border: 1px dashed #ef4444;">
+      <strong>Hidden Text Excerpt:</strong><br>
+      "{{ audit.injection.hidden_text_excerpt }}"
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Side-by-side comparison -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+    <div>
+      <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-bottom: 0.25rem;">
+        ORIGINAL INBOX EMAIL
+      </div>
+      <pre style="height: 240px;">{% if email %}From: {{ email.sender }}
+Subject: {{ email.subject }}
+
+{{ email.body_text }}{% else %}No content available{% endif %}</pre>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-bottom: 0.25rem;">
+        WHAT THE AGENT SAW
+      </div>
+      <pre style="height: 240px; color: #a5f3fc;">{{ what_agent_saw }}</pre>
+    </div>
+  </div>
+</div>
