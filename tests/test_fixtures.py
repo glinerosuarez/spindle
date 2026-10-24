@@ -61,3 +61,25 @@ def test_read_e03_after_approval_redacts_account():
     out = read("work-agent", "e03")
     assert "[REDACTED:bank_account]" in out
     assert "482910394821" not in out
+
+
+def test_fixture_snippets_match_visible_body():
+    source = FixtureSource()
+    fixtures = source.list()
+    assert len(fixtures) == 17
+
+    for email in fixtures:
+        snip = email.snippet
+        prefix = snip[:-1] if snip.endswith("…") else snip
+        norm_body = " ".join(visible_text(email).split())
+        assert norm_body.startswith(prefix), (
+            f"Snippet for {email.id} does not match body prefix:\n"
+            f"Snippet prefix: {prefix!r}\n"
+            f"Body: {norm_body[:200]!r}"
+        )
+
+
+def test_unprotected_search_inlines_hidden_text_without_label():
+    out = search("unprotected", "")
+    assert "verification codes" in out
+    assert "hidden HTML text" not in out

@@ -8,6 +8,7 @@ from spindle.classifier import classify
 from spindle.config import config
 from spindle.injection import (
     extract_hidden_and_visible,
+    html_to_plain_text,
     inspect as inspect_injection,
     visible_text,
 )
@@ -60,12 +61,8 @@ def search(
         blocks = []
         for email in emails:
             header = f"[{email.id}] {email.date[:10]} | {email.sender} | {email.subject}"
-            hidden_part = ""
-            if email.body_html:
-                hidden, _ = extract_hidden_and_visible(email.body_html)
-                if hidden.strip():
-                    hidden_part = f"\n[hidden HTML text]: {hidden.strip()}"
-            block = f"{header}\n{email.body_text}{hidden_part}"
+            content = html_to_plain_text(email.body_html, email.body_text)
+            block = f"{header}\n{content}"
             blocks.append(block)
 
             exposed_redactions = scan(block)
@@ -389,18 +386,14 @@ def read(
 
     # 1. Passthrough mode
     if policy.passthrough:
-        hidden_part = ""
-        if email.body_html:
-            hidden, _ = extract_hidden_and_visible(email.body_html)
-            if hidden.strip():
-                hidden_part = f"\n[hidden HTML text]: {hidden.strip()}"
+        content = html_to_plain_text(email.body_html, email.body_text)
         ret = (
             f"Email [{email.id}]\n"
             f"From: {email.sender}\n"
             f"To: {email.to}\n"
             f"Date: {email.date}\n"
             f"Subject: {email.subject}\n\n"
-            f"{email.body_text}{hidden_part}"
+            f"{content}"
         )
         exposed = scan(ret)
         log_audit(

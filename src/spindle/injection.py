@@ -112,6 +112,20 @@ def visible_text(email: Email) -> str:
     return email.body_text
 
 
+def html_to_plain_text(body_html: Optional[str], fallback_text: str = "") -> str:
+    """Converts HTML to plain text including all elements (even hidden ones), cleaned like visible_text."""
+    if not body_html:
+        return fallback_text
+    try:
+        soup = BeautifulSoup(body_html, "html.parser")
+        raw = soup.get_text(separator="\n")
+        lines = [line.rstrip() for line in raw.splitlines()]
+        cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+        return cleaned if cleaned else fallback_text
+    except Exception:
+        return fallback_text
+
+
 def inspect(email: Email, llm_result: Any | None = None) -> InjectionReport:
     """Inspects an email for prompt injection via hidden text, heuristics, and LLM signals."""
     hidden_text_found = False

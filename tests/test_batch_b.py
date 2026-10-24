@@ -97,7 +97,13 @@ def test_b5_passthrough_returns_full_content():
     assert "482910394821" in out
     # Contains MRN from e06
     assert "KP-849201-9" in out
-    # Contains e15 hidden prompt injection sentence
+    # Contains e15 hidden prompt injection sentence inline without label
     assert "verification codes" in out
+    assert "[hidden HTML text]" not in out
     # Separated by ---
     assert "\n---\n" in out
+
+    # Read unprotected e15 inlines hidden text without label
+    read_out = read("unprotected", "e15")
+    assert "verification codes" in read_out
+    assert "[hidden HTML text]" not in read_out
