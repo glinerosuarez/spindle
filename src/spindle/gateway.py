@@ -1,5 +1,8 @@
+import logging
 import time
 from typing import List, Optional
+
+logger = logging.getLogger("spindle.gateway")
 
 from spindle.classifier import classify
 from spindle.config import config
@@ -86,6 +89,7 @@ def search(
             approval_status = get_approval_status(agent, email.id)
             decision: Decision = decide(agent, policy, cls, inj, approval_status)
         except Exception:
+            logger.exception("processing error for %s", email.id)
             quarantined_entries.append((email, "processing error"))
             log_audit(
                 agent=agent,
@@ -203,38 +207,52 @@ def search(
                     if req["status"] == "approved":
                         still_pending = False
                         for email in ask_emails:
-                            cls, llm_result = classify(email)
-                            inj = inspect_injection(email, llm_result)
-                            redacted_subj, r_subj = redact(
-                                email.subject,
-                                level=policy.protection_level,
-                                custom_rules=policy.custom_rules,
-                            )
-                            redacted_snip, r_snip = redact(
-                                email.snippet,
-                                level=policy.protection_level,
-                                custom_rules=policy.custom_rules,
-                            )
-                            sender_str = email.sender
-                            r_sender = []
-                            if policy.protection_level == "strict":
-                                sender_str, r_sender = redact(email.sender, level="strict")
+                            try:
+                                cls, llm_result = classify(email)
+                                inj = inspect_injection(email, llm_result)
+                                redacted_subj, r_subj = redact(
+                                    email.subject,
+                                    level=policy.protection_level,
+                                    custom_rules=policy.custom_rules,
+                                )
+                                redacted_snip, r_snip = redact(
+                                    email.snippet,
+                                    level=policy.protection_level,
+                                    custom_rules=policy.custom_rules,
+                                )
+                                sender_str = email.sender
+                                r_sender = []
+                                if policy.protection_level == "strict":
+                                    sender_str, r_sender = redact(email.sender, level="strict")
 
-                            total_redactions = r_subj + r_snip + r_sender
-                            allowed_entries.append(
-                                (email, sender_str, redacted_subj, redacted_snip, total_redactions, True)
-                            )
-                            log_audit(
-                                agent=agent,
-                                tool="search",
-                                query=query,
-                                email_id=email.id,
-                                category=cls.category,
-                                action="allow",
-                                reason=f"Category '{cls.category}' approved by user",
-                                redactions=total_redactions,
-                                injection=inj,
-                            )
+                                total_redactions = r_subj + r_snip + r_sender
+                                allowed_entries.append(
+                                    (email, sender_str, redacted_subj, redacted_snip, total_redactions, True)
+                                )
+                                log_audit(
+                                    agent=agent,
+                                    tool="search",
+                                    query=query,
+                                    email_id=email.id,
+                                    category=cls.category,
+                                    action="allow",
+                                    reason=f"Category '{cls.category}' approved by user",
+                                    redactions=total_redactions,
+                                    injection=inj,
+                                )
+                            except Exception:
+                                logger.exception("processing error for %s", email.id)
+                                quarantined_entries.append((email, "processing error"))
+                                log_audit(
+                                    agent=agent,
+                                    tool="search",
+                                    query=query,
+                                    email_id=email.id,
+                                    category="other",
+                                    action="quarantine",
+                                    reason="processing error",
+                                    redactions=[],
+                                )
                     elif req["status"] == "denied":
                         still_pending = False
                         for email in ask_emails:

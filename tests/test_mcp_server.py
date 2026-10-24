@@ -1,6 +1,8 @@
+import os
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from spindle.config import config
 
 
 @pytest.mark.anyio
@@ -8,7 +10,13 @@ async def test_mcp_server_work_agent():
     server_params = StdioServerParameters(
         command="uv",
         args=["run", "spindle-mcp"],
-        env={"SPINDLE_AGENT": "work-agent", "SPINDLE_APPROVAL_TIMEOUT": "1"},
+        env={
+            **os.environ,
+            "SPINDLE_HOME": str(config.home),
+            "LLM_ENABLED": "false",
+            "SPINDLE_AGENT": "work-agent",
+            "SPINDLE_APPROVAL_TIMEOUT": "1",
+        },
     )
 
     async with stdio_client(server_params) as (read, write):
@@ -48,7 +56,12 @@ async def test_mcp_server_unprotected():
     server_params = StdioServerParameters(
         command="uv",
         args=["run", "spindle-mcp"],
-        env={"SPINDLE_AGENT": "unprotected"},
+        env={
+            **os.environ,
+            "SPINDLE_HOME": str(config.home),
+            "LLM_ENABLED": "false",
+            "SPINDLE_AGENT": "unprotected",
+        },
     )
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:

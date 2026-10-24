@@ -40,3 +40,20 @@ def isolate_spindle_env(tmp_path, monkeypatch):
     yield test_home
 
     spindle.policy._LAST_GOOD_POLICY = None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def track_real_home_untouched():
+    real_spindle = Path("~/.spindle").expanduser().resolve()
+    real_db = real_spindle / "spindle.db"
+    real_policy = real_spindle / "policies.yaml"
+
+    db_mtime = real_db.stat().st_mtime if real_db.exists() else None
+    policy_mtime = real_policy.stat().st_mtime if real_policy.exists() else None
+
+    yield
+
+    if real_db.exists() and db_mtime is not None:
+        assert real_db.stat().st_mtime == db_mtime, "real ~/.spindle/spindle.db was modified during tests!"
+    if real_policy.exists() and policy_mtime is not None:
+        assert real_policy.stat().st_mtime == policy_mtime, "real ~/.spindle/policies.yaml was modified during tests!"

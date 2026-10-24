@@ -94,7 +94,7 @@ def redact(
 
     # Strong keywords required within 30 characters
     strong_otp_kw = re.compile(
-        r"(?i)\b(?:verification|verify|otp|passcode|one-time|2fa|security\s+code|login\s+code|sign-in\s+code|your\s+code|code\s+is)\b|code\s*:",
+        r"(?i)\b(?:verification|verify|otp|passcode|one-time|2fa|security\s+code|login\s+code|sign-in\s+code|your\s+code|code\s+is|this\s+code|the\s+code|code\s+expires|code\s+will\s+expire|enter|use\s+this|expires\s+in\s+\d+\s*min\w*)\b|code\s*:",
         re.IGNORECASE,
     )
     # Preceding identifiers to skip: #, PR, order, invoice, ticket, flight, room, ext, suite, apt
@@ -104,17 +104,21 @@ def redact(
     )
 
     def replace_otp(match: re.Match) -> str:
-        digits = match.group(0)
+        matched_str = match.group(0)
+        digits = re.sub(r"[^\d]", "", matched_str)
+        if not (4 <= len(digits) <= 8):
+            return matched_str
+
         start, end = match.span()
 
         # 1. Skip 4-digit years (19xx, 20xx)
         if len(digits) == 4 and (digits.startswith("19") or digits.startswith("20")):
-            return digits
+            return matched_str
 
         # 2. Skip if comes right after #, PR, order, invoice, ticket, flight, room, ext, suite, apt
         lookbehind = current[max(0, start - 30):start]
         if preceding_skip.search(lookbehind):
-            return digits
+            return matched_str
 
         # 3. Check for strong keyword within 30 chars
         window_start = max(0, start - 30)
@@ -124,8 +128,11 @@ def redact(
             record("otp")
             return "[REDACTED:otp]"
 
-        return digits
+        return matched_str
 
+    # Redact spaced-digit OTPs first (e.g. 48 29 13 or 482-913)
+    current = re.sub(r"\b\d{2,4}(?:[ -]\d{2,4}){1,3}\b", replace_otp, current)
+    # Redact contiguous 4-8 digit OTPs
     current = re.sub(r"(?<![A-Za-z0-9_-])\d{4,8}(?![A-Za-z0-9_-])", replace_otp, current)
 
     # 3. api_key / password (all levels)

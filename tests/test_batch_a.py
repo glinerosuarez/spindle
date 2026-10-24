@@ -127,6 +127,57 @@ def test_otp_true_positives_redacted():
     assert "[REDACTED:otp]" in r4
 
 
+def test_otp_a4b_spaced_and_expiring_wording():
+    # 1. "Enter 482913 to continue. This code expires in 10 minutes."
+    t1 = "Enter 482913 to continue. This code expires in 10 minutes."
+    r1, _ = redact(t1, level="standard")
+    assert "[REDACTED:otp]" in r1
+    assert "482913" not in r1
+
+    # Classify Chase email with this text -> auth
+    e1 = Email(
+        id="e_otp1",
+        thread_id="t_otp1",
+        sender="no-reply@chase.com",
+        to="alex.rivera@northwind.io",
+        subject="Your Chase security code",
+        date="2026-10-24T12:00:00Z",
+        snippet="Enter 482913 to continue. This code expires in 10 minutes.",
+        body_text="Enter 482913 to continue. This code expires in 10 minutes.",
+        body_html=None,
+        labels=["INBOX"],
+    )
+    cls1, _ = classify(e1)
+    assert cls1.category == "auth"
+
+    # 2. "Your Chase verification code is 48 29 13"
+    t2 = "Your Chase verification code is 48 29 13"
+    r2, _ = redact(t2, level="standard")
+    assert "[REDACTED:otp]" in r2
+    assert "48 29 13" not in r2
+
+    e2 = Email(
+        id="e_otp2",
+        thread_id="t_otp2",
+        sender="no-reply@chase.com",
+        to="alex.rivera@northwind.io",
+        subject="Your Chase code",
+        date="2026-10-24T12:00:00Z",
+        snippet="Your Chase verification code is 48 29 13",
+        body_text="Your Chase verification code is 48 29 13",
+        body_html=None,
+        labels=["INBOX"],
+    )
+    cls2, _ = classify(e2)
+    assert cls2.category == "auth"
+
+    # 3. Spaced hyphenated OTP: "482-913"
+    t3 = "Your verification code is 482-913"
+    r3, _ = redact(t3, level="standard")
+    assert "[REDACTED:otp]" in r3
+    assert "482-913" not in r3
+
+
 def test_classify_work_email_with_code_freeze_not_auth():
     source = FixtureSource()
     e10 = source.get("e10")
