@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "spindle": {
+      "command": "uv",
+      "args": ["run", "--directory", "/Users/gabriel.linero/projects/spindle/spindle-app", "spindle-mcp"],
+      "env": {
+        "SPINDLE_AGENT": "work-agent"
+      }
+    }
+  }
+}

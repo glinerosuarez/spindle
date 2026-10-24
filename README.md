@@ -110,9 +110,9 @@ Open the link in your browser to inspect live audit events and pending approvals
 
 ---
 
-## 4. Connecting AI Agents (Claude Code Demo)
+## 4. Connecting AI Agents (Cursor CLI Demo)
 
-Spindle provides two demo environments to demonstrate the before/after difference.
+Spindle provides two demo environments to demonstrate the before/after difference. The demo runs in **Cursor CLI** (`cursor-agent`) using **Grok 4.7** (`grok-4.7-medium-fast`), enforced by strict sandbox and permission isolation files (`.cursor/cli.json`).
 
 ### Resetting Demo State
 
@@ -132,36 +132,34 @@ Spindle provides two demo environments to demonstrate the before/after differenc
 ### Beat 1: The "Before" (Unprotected Connector)
 Standard connectors give agents unrestricted inbox access.
 ```bash
-cd demo/before
-MCP_TOOL_TIMEOUT=120000 claude
+./demo/run_cursor.sh before
 ```
-Ask Claude:
-> *"Go through my inbox and draft my weekly update for my team."*
+Ask the agent:
+> *"Summarize everything important in my inbox this week."*
 
 **What happens:**
-* Claude's tool output displays raw verification codes (OTPs), bank account numbers, and medical lab results.
+* The agent receives raw verification codes (OTPs), bank account numbers, medical lab results, and salary offers.
 * The Spindle dashboard lights up with **⚠️ UNPROTECTED** badges and red exposed chips (`otp ×1`, `bank_account ×1`, `medical_record ×1`).
 
 ### Beat 2: The "After" (Spindle Governed Agent)
 ```bash
-cd demo/after
-MCP_TOOL_TIMEOUT=120000 claude
+./demo/run_cursor.sh after
 ```
-Ask Claude the same prompt:
-> *"Go through my inbox and draft my weekly update for my team."*
+Ask the agent the same prompt:
+> *"Summarize everything important in my inbox this week."*
 
 **What happens:**
-* Health and auth emails are cleanly withheld.
-* Compromised emails with hidden injections (`e15`, `e17`) are quarantined with reasons logged in the dashboard.
+* Health and auth emails are cleanly withheld by policy.
+* Compromised emails with prompt injections (`e15`, `e17`) are quarantined with reasons logged in the dashboard.
 * Financial statements are held in the **Approval Queue**.
-* Work emails are returned safely with sensitive PII redacted.
+* Work emails are returned safely with sensitive PII redacted (`[REDACTED:bank_account]`, `[REDACTED:compensation]`, `[REDACTED:street_address]`).
 
 ### Beat 3: Live Human-in-the-Loop Approval
 1. Go to the dashboard at `http://127.0.0.1:8765`.
 2. Look at the **Pending Approvals** card: Request `#1` shows Chase October Statement.
 3. Click **Approve**.
-4. In Claude, ask: *"Summarize my bank statement."*
-5. Claude receives the statement with the account number masked: `[REDACTED:bank_account]`.
+4. In Cursor CLI, ask: *"Summarize my bank statement."*
+5. The agent receives the statement with the account number masked: `[REDACTED:bank_account]`.
 
 ### Beat 4: Claude Policy Assistant
 In the dashboard's **Policy Assistant** panel, type in plain English:
@@ -173,12 +171,21 @@ In the dashboard's **Policy Assistant** panel, type in plain English:
    * `protection_level`: `standard` → `strict` (tightens privacy)
 3. If an edit loosens privacy (e.g. *"Allow this agent to read health emails without asking"*), Spindle flags it in red and requires an explicit confirmation checkbox before applying.
 
+### Alternative: Claude Code
+Claude Code configuration files (`.mcp.json` and `.claude/settings.json`) remain fully configured in both `demo/before` and `demo/after`:
+```bash
+cd demo/before && MCP_TOOL_TIMEOUT=120000 claude
+# or
+cd demo/after && MCP_TOOL_TIMEOUT=120000 claude
+```
+
 ---
 
 ## 5. What's Real vs. Simulated
 
 | Component | Status | Details |
 |---|---|---|
+| **Demo Agent** | **Real** | Grok 4.7, running in Cursor CLI, connected to Spindle over MCP. Spindle is agent-agnostic: any MCP client works, and the Claude Code configs are included. |
 | **MCP Server** | **Real** | Implemented using MCP SDK 2.x over stdio (`search_email`, `read_email`, `send_email`, `check_approval`, `my_permissions`). Zero stdout pollution. |
 | **Governed Outbox** | **Real** | Simulated write tool recording to SQLite `outbox`. 4 safety checks: allowlist matching, quarantine recipient block, secret exfiltration scanning, and 5 sends/agent/hr rate limiting. |
 | **Redaction Engine** | **Real** | 16 regex stages, Luhn credit card validation, medication dictionary, custom rules. |

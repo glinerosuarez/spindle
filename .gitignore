@@ -56,3 +56,6 @@ client_secrets.json
 .vscode/
 *.swp
 *.swo
+
+# Nested demo git repositories
+demo/*/.git/
