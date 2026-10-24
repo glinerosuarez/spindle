@@ -50,6 +50,21 @@
         <p style="color: var(--text-muted); font-size: 0.85rem;">Loading policies...</p>
       </div>
     </div>
+
+    <!-- 5. Policy Assistant (Claude) -->
+    <div class="card">
+      <div class="card-title">
+        <span>✨ Policy Assistant (Claude)</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Plain English → Verified Policy</span>
+      </div>
+      <form hx-post="/assistant/draft" hx-target="#assistant-result" hx-swap="innerHTML">
+        <input type="hidden" name="token" value="{{ token }}">
+        <textarea name="instruction" placeholder="e.g. My work agent should never see anything medical or financial, and ask me before showing personal emails." style="width: 100%; height: 70px; background: #0f172a; color: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-size: 0.8rem; margin-bottom: 0.5rem; font-family: inherit; resize: vertical;" required></textarea>
+        <button type="submit" class="btn btn-primary" style="margin-bottom: 0.75rem;">Draft with Claude</button>
+      </form>
+      <div id="assistant-result"></div>
+    </div>
   </div>
 </div>
+
 {% endblock %}

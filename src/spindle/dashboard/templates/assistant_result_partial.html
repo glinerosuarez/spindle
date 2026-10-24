@@ -1,0 +1,61 @@
+{% if error %}
+<div style="background-color: #450a0a; border: 1px solid #ef4444; border-radius: 6px; padding: 0.75rem; color: #fca5a5; font-size: 0.85rem;">
+  <strong>Policy Assistant Error:</strong> {{ error }}
+</div>
+{% else %}
+<div style="background-color: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 1rem;">
+  <div style="margin-bottom: 0.75rem;">
+    <span style="font-size: 0.8rem; font-weight: bold; color: var(--primary);">CLAUDE'S DRAFT SUMMARY:</span>
+    <p style="font-size: 0.85rem; color: #e2e8f0; margin-top: 0.25rem;">{{ summary }}</p>
+  </div>
+
+  {% if changes %}
+  <div style="margin-bottom: 1rem;">
+    <span style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted);">DETERMINISTIC DIFF & PRIVACY CHECKS:</span>
+    <table style="margin-top: 0.5rem; font-size: 0.8rem;">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Change</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in changes %}
+        <tr>
+          <td><strong>{{ c.agent }}</strong></td>
+          <td>{{ c.description }}</td>
+          <td>
+            {% if c.is_loosening %}
+              <span style="color: #ef4444; font-weight: bold;">⚠️ Loosens Privacy</span>
+            {% else %}
+              <span style="color: #34d399; font-weight: bold;">✓ Tightens / Safe</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">No changes detected in policy draft.</p>
+  {% endif %}
+
+  <form hx-post="/assistant/apply" hx-target="#assistant-result" hx-swap="innerHTML">
+    <input type="hidden" name="token" value="{{ token }}">
+
+    {% if has_loosening %}
+    <div style="background-color: #450a0a; border: 1px solid #ef4444; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #fca5a5;">
+      <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+        <input type="checkbox" name="confirm_loosening" value="yes" required>
+        <span><strong>Warning:</strong> This policy change loosens privacy settings. Check this box to confirm you accept this risk.</span>
+      </label>
+    </div>
+    {% endif %}
+
+    <div style="display: flex; gap: 0.5rem;">
+      <button type="submit" class="btn btn-primary">Apply Policy Update</button>
+    </div>
+  </form>
+</div>
+{% endif %}

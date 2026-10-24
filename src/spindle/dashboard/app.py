@@ -336,7 +336,82 @@ async def get_policies_partial(request: Request, auth: str = Depends(verify_auth
 
 
 
+_PENDING_DRAFT: Optional[Tuple[Any, Any, List[Any]]] = None
+
+
+@app.post("/assistant/draft", response_class=HTMLResponse)
+async def draft_assistant_policy(
+    request: Request,
+    instruction: str = Form(...),
+    auth: str = Depends(verify_post_auth),
+):
+    global _PENDING_DRAFT
+    from spindle.policy_assistant import PolicyAssistantError, draft_policy_with_claude
+
+    current_policy = load_policy()
+    try:
+        new_policy, draft, changes = draft_policy_with_claude(instruction, current_policy)
+        _PENDING_DRAFT = (new_policy, draft, changes)
+        has_loosening = any(c.is_loosening for c in changes)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="assistant_result_partial.html",
+            context={
+                "summary": draft.summary,
+                "changes": changes,
+                "has_loosening": has_loosening,
+                "token": _AUTH_TOKEN,
+                "error": None,
+            },
+        )
+    except PolicyAssistantError as e:
+        return templates.TemplateResponse(
+            request=request,
+            name="assistant_result_partial.html",
+            context={
+                "summary": "",
+                "changes": [],
+                "has_loosening": False,
+                "token": _AUTH_TOKEN,
+                "error": str(e),
+            },
+        )
+
+
+@app.post("/assistant/apply", response_class=HTMLResponse)
+async def apply_assistant_policy(
+    request: Request,
+    confirm_loosening: Optional[str] = Form(None),
+    auth: str = Depends(verify_post_auth),
+):
+    global _PENDING_DRAFT
+    if _PENDING_DRAFT is None:
+        return HTMLResponse("<p style='color: #ef4444;'>No pending policy draft to apply.</p>")
+
+    new_policy, draft, changes = _PENDING_DRAFT
+    has_loosening = any(c.is_loosening for c in changes)
+
+    if has_loosening and not confirm_loosening:
+        return HTMLResponse(
+            "<p style='color: #ef4444; font-weight: bold;'>"
+            "Error: You must check the confirmation box to apply changes that loosen privacy."
+            "</p>"
+        )
+
+    save_policy(new_policy)
+    _PENDING_DRAFT = None
+    logger.info("Policy updated via Claude policy assistant: %s", draft.summary)
+
+    return HTMLResponse(
+        "<div style='background-color: #064e3b; border: 1px solid #10b981; border-radius: 6px; padding: 0.75rem; color: #a7f3d0; margin-bottom: 1rem;'>"
+        "✓ Policy successfully updated and saved! All AI agent calls are now governed by the updated rules."
+        "</div>"
+    )
+
+
 def main():
+
     import uvicorn
 
     print(f"\n==================================================================")
