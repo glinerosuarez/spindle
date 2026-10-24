@@ -20,6 +20,7 @@ from spindle.sources import FixtureSource
 from spindle.store import (
     decide_approval_request,
     get_connection,
+    get_outbox_messages,
     init_db,
 )
 
@@ -230,6 +231,20 @@ async def deny_request(
     init_db()
     decide_approval_request(request_id, "denied")
     return await get_approvals(request, auth=auth)
+
+
+@app.get("/outbox", response_class=HTMLResponse)
+async def get_outbox(request: Request, auth: str = Depends(verify_auth)):
+    init_db()
+    messages = get_outbox_messages(limit=30)
+    return templates.TemplateResponse(
+        request=request,
+        name="outbox_partial.html",
+        context={
+            "outbox_messages": [dict(m) for m in messages],
+            "token": _AUTH_TOKEN,
+        },
+    )
 
 
 @app.get("/inspect/{audit_id}", response_class=HTMLResponse)

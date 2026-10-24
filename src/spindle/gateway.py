@@ -10,10 +10,14 @@ from spindle.redact import redact, scan
 from spindle.sources import FixtureSource, MailSource
 from spindle.store import (
     create_approval_request,
+    create_outbox_message,
     get_approval_request,
     get_approval_status,
+    get_outbox_sends_last_hour,
     init_db,
+    is_recipient_only_in_quarantined,
     log_audit,
+    update_outbox_status,
 )
 
 
@@ -523,3 +527,165 @@ def permissions(agent: str) -> str:
         lines.append("- Custom Rules: none")
 
     return "\n".join(lines)
+
+
+def send_email(
+    agent: str,
+    to: List[str],
+    subject: str,
+    body: str,
+    timeout: Optional[float] = None,
+) -> str:
+    """Sends an email subject to Spindle outbound governance policies."""
+    init_db()
+    policy_file = load_policy()
+    policy = get_agent_policy(policy_file, agent)
+
+    if not to:
+        return "Error: At least one recipient is required."
+
+    # 1. Passthrough mode
+    if policy.passthrough:
+        outbox_id = create_outbox_message(
+            agent=agent,
+            to_addrs=to,
+            subject=subject,
+            body=body,
+            status="sent",
+            reason="Unfiltered passthrough connector",
+        )
+        return (
+            f"Email successfully queued for delivery to {', '.join(to)} "
+            f"(unfiltered passthrough connector, outbox #{outbox_id})."
+        )
+
+    # 2. Check 3: Secret Exfiltration Scan
+    scanned_redactions = scan(f"{subject}\n{body}")
+    forbidden_secret_types = {"otp", "auth_link", "card", "ssn", "bank_account", "routing_number"}
+    found_secrets = [r.type for r in scanned_redactions if r.type in forbidden_secret_types]
+    if found_secrets:
+        reason = f"Outbound exfiltration prevented: sensitive secrets detected ({', '.join(sorted(set(found_secrets)))})"
+        outbox_id = create_outbox_message(
+            agent=agent,
+            to_addrs=to,
+            subject=subject,
+            body=body,
+            status="blocked",
+            reason=reason,
+        )
+        return (
+            f"[BLOCKED BY SPINDLE] Outbound email to {', '.join(to)} was blocked: "
+            f"sensitive secrets detected in content ({', '.join(sorted(set(found_secrets)))}). "
+            f"Exfiltration prevented (outbox #{outbox_id})."
+        )
+
+    # 3. Check 4: Rate limit (5 sends per agent per rolling hour)
+    recent_sends = get_outbox_sends_last_hour(agent)
+    if recent_sends >= 5:
+        reason = f"Rate limit exceeded ({recent_sends}/5 sends in past hour)"
+        outbox_id = create_outbox_message(
+            agent=agent,
+            to_addrs=to,
+            subject=subject,
+            body=body,
+            status="blocked",
+            reason=reason,
+        )
+        return (
+            f"[BLOCKED BY SPINDLE] Rate limit exceeded for agent '{agent}' "
+            f"({recent_sends}/5 sends used in past hour). Outbox #{outbox_id} blocked."
+        )
+
+    # 4. Check 2: Quarantine recipient block
+    for recip in to:
+        if is_recipient_only_in_quarantined(recip):
+            reason = f"Recipient '{recip}' appears only in quarantined emails"
+            outbox_id = create_outbox_message(
+                agent=agent,
+                to_addrs=to,
+                subject=subject,
+                body=body,
+                status="blocked",
+                reason=reason,
+            )
+            return (
+                f"[BLOCKED BY SPINDLE] Outbound email to {', '.join(to)} was blocked: "
+                f"recipient '{recip}' is associated only with suspicious quarantined emails. "
+                f"No approval permitted (outbox #{outbox_id})."
+            )
+
+    # 5. Check 1: Recipient Allowlist
+    all_allowed = True
+    for recip in to:
+        recip_lower = recip.lower().strip()
+        if "<" in recip_lower and ">" in recip_lower:
+            recip_lower = recip_lower.split("<")[1].split(">")[0].strip()
+
+        matched = False
+        for allowed in policy.send_allow:
+            allow_entry = allowed.lower().strip()
+            if allow_entry.startswith("@"):
+                domain_part = recip_lower[recip_lower.rfind("@") :] if "@" in recip_lower else ""
+                if domain_part == allow_entry:
+                    matched = True
+                    break
+            elif recip_lower == allow_entry:
+                matched = True
+                break
+        if not matched:
+            all_allowed = False
+            break
+
+    if all_allowed:
+        outbox_id = create_outbox_message(
+            agent=agent,
+            to_addrs=to,
+            subject=subject,
+            body=body,
+            status="sent",
+            reason="Recipients matched policy allowlist",
+        )
+        return f"Email successfully queued for delivery to {', '.join(to)} (outbox #{outbox_id})."
+
+    # Needs user approval
+    outbox_id = create_outbox_message(
+        agent=agent,
+        to_addrs=to,
+        subject=subject,
+        body=body,
+        status="pending",
+        reason="Recipients not on allowlist: awaiting user approval",
+    )
+    req_id = create_approval_request(
+        agent=agent,
+        tool="send_email",
+        query=f"to: {', '.join(to)} | {subject}",
+        email_ids=[str(outbox_id)],
+        categories=["outbox"],
+    )
+
+    effective_timeout = timeout if timeout is not None else config.approval_timeout
+    if effective_timeout > 0:
+        t_end = time.time() + effective_timeout
+        while time.time() < t_end:
+            req = get_approval_request(req_id)
+            if req and req["status"] in ("approved", "denied"):
+                if req["status"] == "approved":
+                    update_outbox_status(outbox_id, "sent", "Approved by user")
+                    return (
+                        f"Email successfully queued for delivery to {', '.join(to)} "
+                        f"(approved by user, outbox #{outbox_id})."
+                    )
+                elif req["status"] == "denied":
+                    update_outbox_status(outbox_id, "denied", "Denied by user")
+                    return (
+                        f"[DENIED BY USER] Outbound email to {', '.join(to)} was denied "
+                        f"by user (outbox #{outbox_id})."
+                    )
+                break
+            time.sleep(0.5)
+
+    return (
+        f"[PENDING APPROVAL] Outbound email to {', '.join(to)} requires user approval "
+        f"(request #{req_id}). Call check_approval({req_id}) later."
+    )

@@ -20,6 +20,8 @@ agents:
     custom_rules:
       - name: compensation
         pattern: '(?i)\$\s?\d{2,3}(?:,\d{3})+(?:\s?(?:/yr|per year|base|salary))?'
+    send_allow:
+      - "@northwind.io"
   strict-agent:
     description: "Untrusted third-party agent"
     protection_level: strict

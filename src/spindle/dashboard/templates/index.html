@@ -25,6 +25,17 @@
         <p style="color: var(--text-muted); font-size: 0.85rem;">Connecting to gateway audit log...</p>
       </div>
     </div>
+
+    <!-- 3. Governed Outbox Feed -->
+    <div class="card">
+      <div class="card-title">
+        <span>Governed Outbox (send_email)</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Auto-refreshes every 2s</span>
+      </div>
+      <div id="outbox-container" hx-get="/outbox" hx-trigger="load, every 2s" hx-swap="innerHTML">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Checking governed outbox...</p>
+      </div>
+    </div>
   </div>
 
   <!-- Right Column: Inspector & Policy Controls -->

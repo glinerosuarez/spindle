@@ -177,7 +177,7 @@ def decide_approval_request(
     ts = datetime.now(timezone.utc).isoformat()
     with conn:
         row = conn.execute(
-            "SELECT agent, email_ids_json FROM approval_requests WHERE id = ?",
+            "SELECT agent, tool, email_ids_json FROM approval_requests WHERE id = ?",
             (request_id,),
         ).fetchone()
         if not row:
@@ -185,12 +185,24 @@ def decide_approval_request(
             return
 
         agent = row["agent"]
+        tool = row["tool"] if "tool" in row.keys() else "search"
         email_ids = json.loads(row["email_ids_json"])
 
         conn.execute(
             "UPDATE approval_requests SET status = ?, decided_ts = ? WHERE id = ?",
             (status, ts, request_id),
         )
+
+        if tool == "send_email":
+            outbox_status = "sent" if status == "approved" else "denied"
+            for outbox_id_str in email_ids:
+                try:
+                    conn.execute(
+                        "UPDATE outbox SET status = ?, reason = ? WHERE id = ?",
+                        (outbox_status, f"{status.capitalize()} by user", int(outbox_id_str)),
+                    )
+                except Exception:
+                    pass
 
         for eid in email_ids:
             conn.execute(
@@ -263,6 +275,136 @@ def set_cached_classification(
             (email_id, content_hash, model, cls_json, llm_json),
         )
     conn.close()
+
+def create_outbox_message(
+    agent: str,
+    to_addrs: List[str],
+    subject: str,
+    body: str,
+    status: str,
+    reason: str,
+    db_path: Optional[Path] = None,
+) -> int:
+    conn = get_connection(db_path)
+    ts = datetime.now(timezone.utc).isoformat()
+    to_str = ", ".join(to_addrs)
+    with conn:
+        cur = conn.execute(
+            """
+            INSERT INTO outbox (ts, agent, to_addrs, subject, body, status, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ts, agent, to_str, subject, body, status, reason),
+        )
+        outbox_id = cur.lastrowid
+    conn.close()
+    return outbox_id
+
+
+def get_outbox_messages(
+    limit: int = 50,
+    db_path: Optional[Path] = None,
+) -> List[sqlite3.Row]:
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        """
+        SELECT * FROM outbox
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def update_outbox_status(
+    outbox_id: int,
+    status: str,
+    reason: str,
+    db_path: Optional[Path] = None,
+) -> None:
+    conn = get_connection(db_path)
+    with conn:
+        conn.execute(
+            """
+            UPDATE outbox
+            SET status = ?, reason = ?
+            WHERE id = ?
+            """,
+            (status, reason, outbox_id),
+        )
+    conn.close()
+
+
+def get_outbox_sends_last_hour(
+    agent: str,
+    db_path: Optional[Path] = None,
+) -> int:
+    conn = get_connection(db_path)
+    # Check sends in the last 3600 seconds
+    # Status 'sent' or 'allowed'
+    rows = conn.execute(
+        """
+        SELECT ts FROM outbox
+        WHERE agent = ? AND status IN ('sent', 'approved')
+        """,
+        (agent,),
+    ).fetchall()
+    conn.close()
+
+    now = datetime.now(timezone.utc)
+    count = 0
+    for r in rows:
+        try:
+            msg_ts = datetime.fromisoformat(r["ts"])
+            if (now - msg_ts).total_seconds() <= 3600:
+                count += 1
+        except Exception:
+            continue
+    return count
+
+
+def is_recipient_only_in_quarantined(
+    recipient: str,
+    db_path: Optional[Path] = None,
+) -> bool:
+    """Returns True if recipient appears in quarantined emails and nowhere in benign emails."""
+    from spindle.sources import FixtureSource
+    from spindle.injection import inspect as inspect_injection
+    from spindle.classifier import classify
+
+    source = FixtureSource()
+    emails = source.search("", limit=100)
+    
+    clean_recip = recipient.lower().strip()
+    # Handle angles like "Name <email@domain.com>"
+    if "<" in clean_recip and ">" in clean_recip:
+        clean_recip = clean_recip.split("<")[1].split(">")[0].strip()
+
+    quarantined_senders = set()
+    benign_senders = set()
+
+    for em in emails:
+        cls, llm_res = classify(em, use_cache=True)
+        inj = inspect_injection(em, llm_res)
+        
+        sender_email = em.sender.lower().strip()
+        if "<" in sender_email and ">" in sender_email:
+            sender_email = sender_email.split("<")[1].split(">")[0].strip()
+
+        if inj.quarantine:
+            quarantined_senders.add(sender_email)
+            # Also check if recipient appears in body of quarantined email (e.g. domain or address)
+            if clean_recip in em.body_text.lower():
+                quarantined_senders.add(clean_recip)
+        else:
+            benign_senders.add(sender_email)
+            if clean_recip in em.body_text.lower() or clean_recip in em.to.lower():
+                benign_senders.add(clean_recip)
+
+    # If it is in quarantined_senders and NOT in benign_senders
+    return (clean_recip in quarantined_senders) and (clean_recip not in benign_senders)
 
 
 def main():

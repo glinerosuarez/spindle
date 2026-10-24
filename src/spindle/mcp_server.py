@@ -11,6 +11,7 @@ from spindle.gateway import check_approval as gw_check_approval
 from spindle.gateway import permissions as gw_permissions
 from spindle.gateway import read as gw_read
 from spindle.gateway import search as gw_search
+from spindle.gateway import send_email as gw_send_email
 
 # NEVER write logs to stdout! All stdout is reserved for JSON-RPC MCP messages.
 logging.basicConfig(
@@ -51,6 +52,15 @@ def check_approval(request_id: int) -> str:
     agent = os.environ.get("SPINDLE_AGENT", config.agent)
     logger.info("check_approval called by agent '%s' for request_id=%d", agent, request_id)
     return gw_check_approval(agent=agent, request_id=request_id)
+
+
+@server.tool(
+    description="Send an email to specified recipients. Governed by Spindle privacy policies, recipient allowlists, secret exfiltration scanning, and rate limits."
+)
+def send_email(to: list[str], subject: str, body: str) -> str:
+    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+    logger.info("send_email called by agent '%s' to=%s subject='%s'", agent, to, subject)
+    return gw_send_email(agent=agent, to=to, subject=subject, body=body)
 
 
 @server.tool(

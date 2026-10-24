@@ -3,7 +3,7 @@
 > **User-Side Email Privacy Gateway for AI Agents**  
 > *CalHacks 13.0 Project*
 
-[![Tests](https://img.shields.io/badge/tests-38%20passed-success)](tests/)
+[![Tests](https://img.shields.io/badge/tests-45%20passed-success)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](pyproject.toml)
 [![Protocol](https://img.shields.io/badge/mcp-2.3.0-purple)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -20,7 +20,7 @@ Today, giving an AI agent access to your inbox means giving it **everything**:
 
 Enterprise guardrails (Lakera, Prompt Guard, enterprise DLP) protect **the company deploying the model**. The end user has zero protection and must trust that every third-party agent or connector behaves properly.
 
-**Spindle is the user's personal privacy gateway.** It sits between your inbox (Gmail or local mail) and AI agents (Claude Code, Cursor, Windsurf, or custom MCP agents). Spindle runs **locally on your machine**, enforcing granular per-agent privacy policies, deterministically redacting sensitive data, quarantining prompt injections, and requiring real-time human approval before sensitive emails are released.
+**Spindle is the user's personal privacy gateway.** It sits between your inbox (Gmail or local mail) and AI agents (Claude Code, Cursor, Windsurf, or custom MCP agents). Spindle runs **locally on your machine**, enforcing granular per-agent privacy policies, deterministically redacting sensitive data, quarantining prompt injections, governing outbound writes (`send_email`), and requiring real-time human approval before sensitive emails are released.
 
 ---
 
@@ -34,7 +34,7 @@ flowchart TD
 
     subgraph SpindleHost ["Spindle Local Privacy Gateway (Localhost)"]
         direction TB
-        MCP["Spindle MCP Server (stdio)\nsearch_email · read_email\ncheck_approval · my_permissions"]
+        MCP["Spindle MCP Server (stdio)\nsearch_email · read_email · send_email\ncheck_approval · my_permissions"]
         
         subgraph Pipeline ["Security & Privacy Pipeline"]
             Classifier["Classifier\n(Meta Muse / Llama 3.2 + Rule Overrides)"]
@@ -164,10 +164,11 @@ In the dashboard's **Policy Assistant** panel, type in plain English:
 
 | Component | Status | Details |
 |---|---|---|
-| **MCP Server** | **Real** | Implemented using MCP SDK 2.x over stdio (`search_email`, `read_email`, `check_approval`, `my_permissions`). Zero stdout pollution. |
+| **MCP Server** | **Real** | Implemented using MCP SDK 2.x over stdio (`search_email`, `read_email`, `send_email`, `check_approval`, `my_permissions`). Zero stdout pollution. |
+| **Governed Outbox** | **Real** | Simulated write tool recording to SQLite `outbox`. 4 safety checks: allowlist matching, quarantine recipient block, secret exfiltration scanning, and 5 sends/agent/hr rate limiting. |
 | **Redaction Engine** | **Real** | 16 regex stages, Luhn credit card validation, medication dictionary, custom rules. |
 | **Injection Guard** | **Real** | BeautifulSoup HTML hidden-attribute parser + 6 heuristic regex detectors + LLM confidence signal. |
-| **Dashboard** | **Real** | FastAPI + SQLite WAL + vendored HTMX + CSRF/Token cookie authentication. |
+| **Dashboard** | **Real** | FastAPI + SQLite WAL + vendored HTMX + CSRF/Token cookie authentication + real-time Outbox monitor. |
 | **Policy Assistant** | **Real** | Anthropic Claude structured parsing + deterministic diff engine with loosening safety gate. |
 | **Inbox Data** | **Realistic Fixtures** | 17 handcrafted emails for fictional persona **Alex Rivera** (`alex.rivera@northwind.io`) at Northwind. Includes realistic prompt injections modeling CVE-2025-32711 and tiny CSS text. Zero personal user data. |
 | **Unprotected Agent** | **Simulated** | Agent configured with `passthrough: true` to demonstrate what an ordinary Gmail connector exposes to LLMs. |
@@ -184,18 +185,18 @@ In the dashboard's **Policy Assistant** panel, type in plain English:
 
 ## 7. Product Vision & Roadmap
 
-1. **Governed Outbox (`send_email`):** Prevent exfiltration by enforcing recipient allowlists, blocking recipients found only in quarantined emails, scanning outbound bodies for secrets, and rate limiting.
-2. **Cryptographically Signed Policies:** User device signs policies with local passkeys/Secure Enclave; the data plane rejects unsigned modifications.
-3. **Fine-Tuned Small Language Models:** Dedicated 1B–3B parameter on-device models trained specifically for email categorization and prompt injection classification.
-4. **Additional Context Hub Connectors:** Expand beyond email to Google Drive, Slack, Notion, and local file storage.
+1. **Cryptographically Signed Policies:** User device signs policies with local passkeys/Secure Enclave; the data plane rejects unsigned modifications.
+2. **Fine-Tuned Small Language Models:** Dedicated 1B–3B parameter on-device models trained specifically for email categorization and prompt injection classification.
+3. **Additional Context Hub Connectors:** Expand beyond email to Google Drive, Slack, Notion, and local file storage.
+4. **Hardware Key Enclaves:** Hardware security module (HSM) attestation for enterprise deployment.
 
 ---
 
 ## 8. Verification & Test Suite
 
-Run the full automated test suite (38 tests) and end-to-end dry run:
+Run the full automated test suite (45 tests) and end-to-end dry run:
 ```bash
-# Run pytest suite
+# Run pytest suite (45 unit & integration tests)
 uv run pytest -v
 
 # Run 3-cycle automated demo dry run

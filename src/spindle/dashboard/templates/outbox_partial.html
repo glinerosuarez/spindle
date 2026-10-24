@@ -1,0 +1,46 @@
+{% if not outbox_messages %}
+<p style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">No outbound emails sent yet. Calls to <code>send_email</code> will appear here with governance status.</p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Agent</th>
+      <th>Status</th>
+      <th>Recipients</th>
+      <th>Subject</th>
+      <th>Governance Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for msg in outbox_messages %}
+    <tr>
+      <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">{{ msg.ts[11:19] }}</td>
+      <td><strong>{{ msg.agent }}</strong></td>
+      <td>
+        {% if msg.status == 'sent' %}
+          <span class="badge badge-allow">Delivered</span>
+        {% elif msg.status == 'pending' %}
+          <span class="badge badge-ask">Pending</span>
+        {% elif msg.status == 'blocked' %}
+          <span class="badge badge-quarantine">🚨 Blocked</span>
+        {% elif msg.status == 'denied' %}
+          <span class="badge badge-deny">Denied</span>
+        {% else %}
+          <span class="badge">{{ msg.status }}</span>
+        {% endif %}
+      </td>
+      <td style="font-size: 0.8rem; color: #93c5fd; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        {{ msg.to_addrs }}
+      </td>
+      <td style="font-size: 0.8rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        {{ msg.subject }}
+      </td>
+      <td style="font-size: 0.75rem; color: var(--text-muted);">
+        {{ msg.reason }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

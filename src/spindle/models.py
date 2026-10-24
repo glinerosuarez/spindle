@@ -73,6 +73,7 @@ class AgentPolicy(BaseModel):
     access: Dict[Category, Action] = Field(default_factory=dict)
     max_results: int = 20
     custom_rules: List[CustomRule] = Field(default_factory=list)
+    send_allow: List[str] = Field(default_factory=list)
 
 
 

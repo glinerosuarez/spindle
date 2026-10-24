@@ -17,12 +17,19 @@
     </div>
 
     <div style="margin-bottom: 0.75rem; font-size: 0.85rem;">
-      <span style="color: var(--text-muted);">Emails requested:</span>
-      <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
-        {% for em in req.emails %}
-          <li><strong>[{{ em.id }}]</strong> {{ em.sender }} &mdash; <em>{{ em.subject }}</em></li>
-        {% endfor %}
-      </ul>
+      {% if req.tool == 'send_email' %}
+        <span style="color: var(--text-muted);">Outbound message requested:</span>
+        <div style="margin-top: 0.25rem; font-family: monospace; font-size: 0.8rem; background: #1e293b; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border);">
+          {{ req.query }}
+        </div>
+      {% else %}
+        <span style="color: var(--text-muted);">Emails requested:</span>
+        <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
+          {% for em in req.emails %}
+            <li><strong>[{{ em.id }}]</strong> {{ em.sender }} &mdash; <em>{{ em.subject }}</em></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
     </div>
 
     <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
