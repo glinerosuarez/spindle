@@ -8,8 +8,9 @@ async def test_mcp_server_work_agent():
     server_params = StdioServerParameters(
         command="uv",
         args=["run", "spindle-mcp"],
-        env={"SPINDLE_AGENT": "work-agent"},
+        env={"SPINDLE_AGENT": "work-agent", "SPINDLE_APPROVAL_TIMEOUT": "1"},
     )
+
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()

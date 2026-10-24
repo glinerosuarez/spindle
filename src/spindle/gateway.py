@@ -1,8 +1,8 @@
-from __future__ import annotations
-
+import time
 from typing import List, Optional
 
 from spindle.classifier import classify
+from spindle.config import config
 from spindle.injection import inspect as inspect_injection, visible_text
 from spindle.models import Category, Decision, Email, Redaction
 from spindle.policy import get_agent_policy, load_policy, decide
@@ -17,6 +17,7 @@ from spindle.store import (
 )
 
 
+
 def get_mail_source() -> MailSource:
     return FixtureSource()
 
@@ -26,6 +27,7 @@ def search(
     query: str = "",
     max_results: Optional[int] = None,
     source: Optional[MailSource] = None,
+    timeout: Optional[float] = None,
 ) -> str:
     """Executes an email search governed by Spindle privacy policies."""
     init_db()
@@ -161,8 +163,10 @@ def search(
                 injection=inj,
             )
 
-    # If there are ask emails, create approval request in store
+    # If there are ask emails, create approval request in store and wait
     request_id = None
+    still_pending = True
+
     if ask_emails:
         request_id = create_approval_request(
             agent=agent,
@@ -171,6 +175,65 @@ def search(
             email_ids=[e.id for e in ask_emails],
             categories=ask_categories,
         )
+
+        effective_timeout = timeout if timeout is not None else config.approval_timeout
+        if effective_timeout > 0:
+            t_end = time.time() + effective_timeout
+            while time.time() < t_end:
+                req = get_approval_request(request_id)
+                if req and req["status"] in ("approved", "denied"):
+                    if req["status"] == "approved":
+                        still_pending = False
+                        for email in ask_emails:
+                            cls, llm_result = classify(email)
+                            inj = inspect_injection(email, llm_result)
+                            redacted_subj, r_subj = redact(
+                                email.subject,
+                                level=policy.protection_level,
+                                custom_rules=policy.custom_rules,
+                            )
+                            redacted_snip, r_snip = redact(
+                                email.snippet,
+                                level=policy.protection_level,
+                                custom_rules=policy.custom_rules,
+                            )
+                            sender_str = email.sender
+                            r_sender = []
+                            if policy.protection_level == "strict":
+                                sender_str, r_sender = redact(email.sender, level="strict")
+
+                            total_redactions = r_subj + r_snip + r_sender
+                            allowed_entries.append(
+                                (email, sender_str, redacted_subj, redacted_snip, total_redactions, True)
+                            )
+                            log_audit(
+                                agent=agent,
+                                tool="search",
+                                query=query,
+                                email_id=email.id,
+                                category=cls.category,
+                                action="allow",
+                                reason=f"Category '{cls.category}' approved by user",
+                                redactions=total_redactions,
+                                injection=inj,
+                            )
+                    elif req["status"] == "denied":
+                        still_pending = False
+                        for email in ask_emails:
+                            cls, _ = classify(email)
+                            withheld_by_cat[cls.category] = withheld_by_cat.get(cls.category, 0) + 1
+                            log_audit(
+                                agent=agent,
+                                tool="search",
+                                query=query,
+                                email_id=email.id,
+                                category=cls.category,
+                                action="deny",
+                                reason=f"Category '{cls.category}' denied by user",
+                                redactions=[],
+                            )
+                    break
+                time.sleep(0.5)
 
     # Build output string
     lines: List[str] = [
@@ -197,7 +260,7 @@ def search(
                 f"- 1 email from {q_email.sender} ({q_email.date[:10]}): possible prompt injection ({q_reason}). Content withheld."
             )
 
-    if ask_emails and request_id is not None:
+    if ask_emails and still_pending and request_id is not None:
         lines.append("")
         lines.append("Pending approval:")
         cats_str = ", ".join(sorted(set(ask_categories)))
@@ -213,7 +276,13 @@ def search(
     return "\n".join(lines)
 
 
-def read(agent: str, email_id: str, source: Optional[MailSource] = None) -> str:
+
+def read(
+    agent: str,
+    email_id: str,
+    source: Optional[MailSource] = None,
+    timeout: Optional[float] = None,
+) -> str:
     """Reads a single email governed by Spindle privacy policies."""
     init_db()
     policy_file = load_policy()
@@ -295,6 +364,66 @@ def read(agent: str, email_id: str, source: Optional[MailSource] = None) -> str:
             email_ids=[email.id],
             categories=[cls.category],
         )
+
+        effective_timeout = timeout if timeout is not None else config.approval_timeout
+        if effective_timeout > 0:
+            t_end = time.time() + effective_timeout
+            while time.time() < t_end:
+                req = get_approval_request(req_id)
+                if req and req["status"] in ("approved", "denied"):
+                    if req["status"] == "approved":
+                        # Approved! Proceed to allowed read
+                        body = visible_text(email)
+                        redacted_subj, r_subj = redact(
+                            email.subject,
+                            level=policy.protection_level,
+                            custom_rules=policy.custom_rules,
+                        )
+                        redacted_body, r_body = redact(
+                            body,
+                            level=policy.protection_level,
+                            custom_rules=policy.custom_rules,
+                        )
+                        sender_str = email.sender
+                        r_sender = []
+                        if policy.protection_level == "strict":
+                            sender_str, r_sender = redact(email.sender, level="strict")
+                        all_redactions = r_subj + r_body + r_sender
+                        log_audit(
+                            agent=agent,
+                            tool="read",
+                            query=email_id,
+                            email_id=email.id,
+                            category=cls.category,
+                            action="allow",
+                            reason=f"Category '{cls.category}' approved by user",
+                            redactions=all_redactions,
+                            injection=inj,
+                        )
+                        return (
+                            f"Email [{email.id}]\n"
+                            f"From: {sender_str}\n"
+                            f"To: {email.to}\n"
+                            f"Date: {email.date}\n"
+                            f"Subject: {redacted_subj}\n\n"
+                            f"{redacted_body}"
+                        )
+                    elif req["status"] == "denied":
+                        log_audit(
+                            agent=agent,
+                            tool="read",
+                            query=email_id,
+                            email_id=email.id,
+                            category=cls.category,
+                            action="deny",
+                            reason=f"Category '{cls.category}' denied by user",
+                            redactions=[],
+                            injection=inj,
+                        )
+                        return f"[WITHHELD] Email '{email_id}' access denied by user."
+                    break
+                time.sleep(0.5)
+
         log_audit(
             agent=agent,
             tool="read",
@@ -310,6 +439,7 @@ def read(agent: str, email_id: str, source: Optional[MailSource] = None) -> str:
             f"[PENDING APPROVAL] Email '{email_id}' ({cls.category}) requires user approval "
             f"(request #{req_id}). Call check_approval({req_id}) later."
         )
+
 
     # Allowed: strip hidden text and redact
     body = visible_text(email)

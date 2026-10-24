@@ -263,3 +263,33 @@ def set_cached_classification(
             (email_id, content_hash, model, cls_json, llm_json),
         )
     conn.close()
+
+
+def main():
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python -m spindle.store [approve|deny|list] <id>")
+        return
+
+    cmd = sys.argv[1].lower()
+    init_db()
+
+    if cmd == "list":
+        conn = get_connection()
+        rows = conn.execute("SELECT * FROM approval_requests ORDER BY id DESC").fetchall()
+        conn.close()
+        for r in rows:
+            print(f"#{r['id']} | {r['ts'][:19]} | {r['agent']} | {r['status']} | emails: {r['email_ids_json']}")
+    elif cmd in ("approve", "deny") and len(sys.argv) >= 3:
+        req_id = int(sys.argv[2])
+        status = "approved" if cmd == "approve" else "denied"
+        decide_approval_request(req_id, status)
+        print(f"Request #{req_id} marked as {status}.")
+    else:
+        print("Usage: python -m spindle.store [approve|deny|list] <id>")
+
+
+if __name__ == "__main__":
+    main()
+

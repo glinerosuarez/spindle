@@ -1,15 +1,25 @@
+import subprocess
+import threading
+import time
 from spindle.config import config
 from spindle.gateway import check_approval, permissions, read, search
-from spindle.store import get_connection, init_db
+from spindle.store import decide_approval_request, get_approval_status, get_connection, init_db
 
 
 def setup_function():
-    # Ensure fresh DB for each test run
+    # Ensure fresh DB tables for each test run
     init_db()
+    conn = get_connection()
+    with conn:
+        conn.execute("DELETE FROM audit;")
+        conn.execute("DELETE FROM approval_requests;")
+        conn.execute("DELETE FROM approvals;")
+    conn.close()
+
 
 
 def test_work_agent_search():
-    out = search("work-agent", "")
+    out = search("work-agent", "", timeout=0)
 
     # 1. Withheld by policy: e04, e05 (auth: 2), e06, e07, e13 (health: 3)
     assert "Withheld by policy:" in out
@@ -64,8 +74,7 @@ def test_unprotected_search():
 
 
 def test_audit_logging():
-    # Run a search to generate audit rows
-    search("work-agent", "Atlas")
+    search("work-agent", "Atlas", timeout=0)
 
     conn = get_connection()
     rows = conn.execute("SELECT * FROM audit WHERE agent = 'work-agent'").fetchall()
@@ -91,8 +100,8 @@ def test_gateway_read():
     res_e15 = read("work-agent", "e15")
     assert "[QUARANTINED]" in res_e15
 
-    # Read pending approval email (e03)
-    res_e03 = read("work-agent", "e03")
+    # Read pending approval email (e03) with 0 timeout -> pending
+    res_e03 = read("work-agent", "e03", timeout=0)
     assert "[PENDING APPROVAL]" in res_e03
     assert "request #" in res_e03
 
@@ -104,3 +113,59 @@ def test_gateway_permissions():
     assert "finance: ask" in perms
     assert "health: deny" in perms
     assert "compensation" in perms
+
+
+def test_search_waiting_approval_success():
+    def background_approver():
+        time.sleep(1.0)
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT id FROM approval_requests WHERE status = 'pending' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        if row:
+            decide_approval_request(row["id"], "approved")
+
+    t = threading.Thread(target=background_approver)
+    t.start()
+
+    # Search with 5s timeout; background approver fires after 1s
+    out = search("work-agent", "statement", timeout=5)
+    t.join()
+
+    # e03 (Chase statement) was ask, but now approved!
+    assert "[e03]" in out
+    assert "(approved by user)" in out
+    read_res = read("work-agent", "e03")
+    assert "[REDACTED:bank_account]" in read_res
+
+
+
+def test_search_waiting_approval_timeout():
+    # Search with 1s timeout and no approver
+    out = search("work-agent", "statement", timeout=1.0)
+    assert "Pending approval:" in out
+    assert "request #" in out
+    assert "[e03]" not in out
+
+
+def test_cli_approval_tool():
+    # 1. Trigger pending read
+    read_res = read("work-agent", "e03", timeout=0)
+    assert "request #" in read_res
+    req_id = int(read_res.split("request #")[1].split(")")[0])
+
+    # 2. Run CLI approval
+    subprocess.run(
+        ["uv", "run", "python", "-m", "spindle.store", "approve", str(req_id)],
+        check=True,
+    )
+
+    # 3. Verify approval in store
+    status = get_approval_status("work-agent", "e03")
+    assert status == "approved"
+
+    # 4. Read should now succeed immediately
+    read_approved = read("work-agent", "e03")
+    assert "Email [e03]" in read_approved
+    assert "[REDACTED:bank_account]" in read_approved
