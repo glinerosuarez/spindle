@@ -16,6 +16,9 @@ class MailSource(Protocol):
     def get(self, email_id: str) -> Optional[Email]:
         ...
 
+    def list(self) -> List[Email]:
+        ...
+
 
 class FixtureSource:
     def __init__(self, fixtures_path: Optional[Path] = None):
@@ -101,3 +104,7 @@ class FixtureSource:
             if email.id == email_id:
                 return email
         return None
+
+    def list(self) -> List[Email]:
+        self._load()
+        return list(self._emails)

@@ -114,10 +114,20 @@ Open the link in your browser to inspect live audit events and pending approvals
 
 Spindle provides two demo environments to demonstrate the before/after difference.
 
-```bash
-# Demo reset step (clears database, caches, and seeds fresh state):
-rm -rf ~/.spindle && uv run python scripts/warm_cache.py
-```
+### Resetting Demo State
+
+* **Full Reset (run once before judging starts):**
+  Clears the database, logs, and caches, then re-warms all classifications against the local LLM:
+  ```bash
+  rm -rf ~/.spindle && uv run python scripts/warm_cache.py
+  ```
+
+* **Quick Reset (run between judges):**
+  Clears audit logs, pending approval requests, approved emails, and the outbox, and restores `~/.spindle/policies.yaml` to defaults while **preserving the classification cache** for instantaneous zero-latency responses:
+  ```bash
+  uv run python scripts/reset_demo.py
+  ```
+  *(Works while `spindle-dashboard` is actively running via SQLite WAL — no restart needed)*
 
 ### Beat 1: The "Before" (Unprotected Connector)
 Standard connectors give agents unrestricted inbox access.
