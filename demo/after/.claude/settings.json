@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash",
+      "Edit",
+      "Write",
+      "WebFetch",
+      "Read(~/.spindle/**)",
+      "Read(//Users/gabriel.linero/projects/spindle/**)"
+    ]
+  }
+}
