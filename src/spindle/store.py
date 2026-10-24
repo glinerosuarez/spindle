@@ -34,9 +34,16 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 action TEXT,
                 reason TEXT,
                 redactions_json TEXT,
-                injection_json TEXT
+                injection_json TEXT,
+                returned_text TEXT
             );
         """)
+        # Ensure returned_text column exists on audit (migration for existing DBs)
+        cur = conn.execute("PRAGMA table_info(audit);")
+        columns = [row["name"] for row in cur.fetchall()]
+        if "returned_text" not in columns:
+            conn.execute("ALTER TABLE audit ADD COLUMN returned_text TEXT;")
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS approval_requests (
                 id INTEGER PRIMARY KEY,
@@ -94,6 +101,7 @@ def log_audit(
     reason: str,
     redactions: List[Redaction],
     injection: Optional[InjectionReport] = None,
+    returned_text: Optional[str] = None,
     db_path: Optional[Path] = None,
 ) -> None:
     conn = get_connection(db_path)
@@ -106,8 +114,8 @@ def log_audit(
             """
             INSERT INTO audit (
                 ts, agent, tool, query, email_id, category, action, reason,
-                redactions_json, injection_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                redactions_json, injection_json, returned_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 ts,
@@ -120,9 +128,47 @@ def log_audit(
                 reason,
                 redactions_json,
                 injection_json,
+                returned_text,
             ),
         )
     conn.close()
+
+
+def find_pending_request(
+    agent: str,
+    tool_kind: str,
+    email_ids: List[str],
+    db_path: Optional[Path] = None,
+) -> Optional[int]:
+    req_ids_set = set(email_ids)
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        """
+        SELECT id, tool, email_ids_json FROM approval_requests
+        WHERE agent = ? AND status = 'pending'
+        ORDER BY id ASC
+        """,
+        (agent,),
+    ).fetchall()
+    conn.close()
+
+    for row in rows:
+        row_tool = row["tool"]
+        if tool_kind in ("search", "read"):
+            if row_tool not in ("search", "read"):
+                continue
+        elif row_tool != tool_kind:
+            continue
+
+        try:
+            stored_ids = set(json.loads(row["email_ids_json"]))
+        except Exception:
+            continue
+
+        if stored_ids.issuperset(req_ids_set):
+            return row["id"]
+
+    return None
 
 
 def create_approval_request(

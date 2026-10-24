@@ -6,7 +6,11 @@ logger = logging.getLogger("spindle.gateway")
 
 from spindle.classifier import classify
 from spindle.config import config
-from spindle.injection import inspect as inspect_injection, visible_text
+from spindle.injection import (
+    extract_hidden_and_visible,
+    inspect as inspect_injection,
+    visible_text,
+)
 from spindle.models import Category, Decision, Email, Redaction
 from spindle.policy import get_agent_policy, load_policy, decide
 from spindle.redact import redact, scan
@@ -14,6 +18,7 @@ from spindle.sources import FixtureSource, MailSource
 from spindle.store import (
     create_approval_request,
     create_outbox_message,
+    find_pending_request,
     get_approval_request,
     get_approval_status,
     get_outbox_sends_last_hour,
@@ -52,17 +57,18 @@ def search(
 
     # 1. Passthrough mode
     if policy.passthrough:
-        output_lines = [
-            f'Found {len(emails)} emails (unfiltered passthrough access for agent "{agent}").',
-            "",
-        ]
+        blocks = []
         for email in emails:
-            output_lines.append(
-                f"[{email.id}] {email.date[:10]} | {email.sender} | {email.subject}"
-            )
-            output_lines.append(f"      {email.snippet}")
-            # Audit log
-            exposed_redactions = scan(f"{email.subject}\n{email.body_text}")
+            header = f"[{email.id}] {email.date[:10]} | {email.sender} | {email.subject}"
+            hidden_part = ""
+            if email.body_html:
+                hidden, _ = extract_hidden_and_visible(email.body_html)
+                if hidden.strip():
+                    hidden_part = f"\n[hidden HTML text]: {hidden.strip()}"
+            block = f"{header}\n{email.body_text}{hidden_part}"
+            blocks.append(block)
+
+            exposed_redactions = scan(block)
             log_audit(
                 agent=agent,
                 tool="search",
@@ -72,7 +78,13 @@ def search(
                 action="passthrough",
                 reason="Unfiltered passthrough connector",
                 redactions=exposed_redactions,
+                returned_text=block,
             )
+        output_lines = [
+            f'Found {len(emails)} emails (unfiltered passthrough access for agent "{agent}").',
+            "",
+            "\n---\n".join(blocks),
+        ]
         return "\n".join(output_lines)
 
     # 2. Governed mode
@@ -91,6 +103,10 @@ def search(
         except Exception:
             logger.exception("processing error for %s", email.id)
             quarantined_entries.append((email, "processing error"))
+            agent_text = (
+                f"- 1 email from {email.sender} ({email.date[:10]}): "
+                f"possible prompt injection (processing error). Content withheld."
+            )
             log_audit(
                 agent=agent,
                 tool="search",
@@ -100,6 +116,7 @@ def search(
                 action="quarantine",
                 reason="processing error",
                 redactions=[],
+                returned_text=agent_text,
             )
             continue
 
@@ -110,6 +127,10 @@ def search(
 
         elif decision.action == "quarantine":
             quarantined_entries.append((email, inj.reason))
+            agent_text = (
+                f"- 1 email from {email.sender} ({email.date[:10]}): "
+                f"possible prompt injection ({inj.reason}). Content withheld."
+            )
             log_audit(
                 agent=agent,
                 tool="search",
@@ -120,10 +141,12 @@ def search(
                 reason=decision.reason,
                 redactions=[],
                 injection=inj,
+                returned_text=agent_text,
             )
 
         elif decision.action == "deny":
             withheld_by_cat[cls.category] = withheld_by_cat.get(cls.category, 0) + 1
+            agent_text = f"- 1 email: {cls.category} (denied by user policy)"
             log_audit(
                 agent=agent,
                 tool="search",
@@ -134,22 +157,12 @@ def search(
                 reason=decision.reason,
                 redactions=[],
                 injection=inj,
+                returned_text=agent_text,
             )
 
         elif decision.action == "ask":
             ask_emails.append(email)
             ask_categories.append(cls.category)
-            log_audit(
-                agent=agent,
-                tool="search",
-                query=query,
-                email_id=email.id,
-                category=cls.category,
-                action="ask",
-                reason=decision.reason,
-                redactions=[],
-                injection=inj,
-            )
 
         elif decision.action == "allow":
             # Apply redactions to snippet and subject
@@ -173,6 +186,11 @@ def search(
             allowed_entries.append(
                 (email, sender_str, redacted_subj, redacted_snip, total_redactions, is_approved)
             )
+            approved_tag = "   (approved by user)" if is_approved else ""
+            agent_text = (
+                f"[{email.id}] {email.date[:10]} | {sender_str} | {redacted_subj}{approved_tag}\n"
+                f"      {redacted_snip}"
+            )
             log_audit(
                 agent=agent,
                 tool="search",
@@ -183,20 +201,26 @@ def search(
                 reason=decision.reason,
                 redactions=total_redactions,
                 injection=inj,
+                returned_text=agent_text,
             )
 
-    # If there are ask emails, create approval request in store and wait
+    # If there are ask emails, reuse or create approval request in store and wait
     request_id = None
     still_pending = True
 
     if ask_emails:
-        request_id = create_approval_request(
-            agent=agent,
-            tool="search",
-            query=query,
-            email_ids=[e.id for e in ask_emails],
-            categories=ask_categories,
-        )
+        ask_ids = [e.id for e in ask_emails]
+        existing_id = find_pending_request(agent, "search", ask_ids)
+        if existing_id is not None:
+            request_id = existing_id
+        else:
+            request_id = create_approval_request(
+                agent=agent,
+                tool="search",
+                query=query,
+                email_ids=ask_ids,
+                categories=ask_categories,
+            )
 
         effective_timeout = timeout if timeout is not None else config.approval_timeout
         if effective_timeout > 0:
@@ -229,6 +253,10 @@ def search(
                                 allowed_entries.append(
                                     (email, sender_str, redacted_subj, redacted_snip, total_redactions, True)
                                 )
+                                agent_text = (
+                                    f"[{email.id}] {email.date[:10]} | {sender_str} | {redacted_subj}   (approved by user)\n"
+                                    f"      {redacted_snip}"
+                                )
                                 log_audit(
                                     agent=agent,
                                     tool="search",
@@ -239,10 +267,15 @@ def search(
                                     reason=f"Category '{cls.category}' approved by user",
                                     redactions=total_redactions,
                                     injection=inj,
+                                    returned_text=agent_text,
                                 )
                             except Exception:
                                 logger.exception("processing error for %s", email.id)
                                 quarantined_entries.append((email, "processing error"))
+                                agent_text = (
+                                    f"- 1 email from {email.sender} ({email.date[:10]}): "
+                                    f"possible prompt injection (processing error). Content withheld."
+                                )
                                 log_audit(
                                     agent=agent,
                                     tool="search",
@@ -252,12 +285,14 @@ def search(
                                     action="quarantine",
                                     reason="processing error",
                                     redactions=[],
+                                    returned_text=agent_text,
                                 )
                     elif req["status"] == "denied":
                         still_pending = False
                         for email in ask_emails:
                             cls, _ = classify(email)
                             withheld_by_cat[cls.category] = withheld_by_cat.get(cls.category, 0) + 1
+                            agent_text = f"- 1 email: {cls.category} (denied by user policy)"
                             log_audit(
                                 agent=agent,
                                 tool="search",
@@ -267,9 +302,30 @@ def search(
                                 action="deny",
                                 reason=f"Category '{cls.category}' denied by user",
                                 redactions=[],
+                                returned_text=agent_text,
                             )
                     break
                 time.sleep(0.5)
+
+        if still_pending and request_id is not None:
+            cats_str = ", ".join(sorted(set(ask_categories)))
+            agent_text = (
+                f"- request #{request_id}: {len(ask_emails)} {cats_str} email(s). "
+                f"Awaiting user approval; call check_approval({request_id}) later."
+            )
+            for email in ask_emails:
+                cls, _ = classify(email)
+                log_audit(
+                    agent=agent,
+                    tool="search",
+                    query=query,
+                    email_id=email.id,
+                    category=cls.category,
+                    action="ask",
+                    reason=f"Category '{cls.category}' requires user approval (pending request #{request_id})",
+                    redactions=[],
+                    returned_text=agent_text,
+                )
 
     # Build output string
     lines: List[str] = [
@@ -333,7 +389,20 @@ def read(
 
     # 1. Passthrough mode
     if policy.passthrough:
-        exposed = scan(f"{email.subject}\n{email.body_text}")
+        hidden_part = ""
+        if email.body_html:
+            hidden, _ = extract_hidden_and_visible(email.body_html)
+            if hidden.strip():
+                hidden_part = f"\n[hidden HTML text]: {hidden.strip()}"
+        ret = (
+            f"Email [{email.id}]\n"
+            f"From: {email.sender}\n"
+            f"To: {email.to}\n"
+            f"Date: {email.date}\n"
+            f"Subject: {email.subject}\n\n"
+            f"{email.body_text}{hidden_part}"
+        )
+        exposed = scan(ret)
         log_audit(
             agent=agent,
             tool="read",
@@ -343,15 +412,9 @@ def read(
             action="passthrough",
             reason="Unfiltered passthrough connector",
             redactions=exposed,
+            returned_text=ret,
         )
-        return (
-            f"Email [{email.id}]\n"
-            f"From: {email.sender}\n"
-            f"To: {email.to}\n"
-            f"Date: {email.date}\n"
-            f"Subject: {email.subject}\n\n"
-            f"{email.body_text}"
-        )
+        return ret
 
     # 2. Governed mode
     try:
@@ -360,6 +423,8 @@ def read(
         approval_status = get_approval_status(agent, email.id)
         decision = decide(agent, policy, cls, inj, approval_status)
     except Exception:
+        logger.exception("processing error for %s", email.id)
+        agent_text = f"[QUARANTINED] Email from {email.sender} ({email.date[:10]}) was quarantined: processing error. Content withheld."
         log_audit(
             agent=agent,
             tool="read",
@@ -369,10 +434,15 @@ def read(
             action="quarantine",
             reason="processing error",
             redactions=[],
+            returned_text=agent_text,
         )
-        return f"[QUARANTINED] Email from {email.sender} ({email.date[:10]}) was quarantined: processing error. Content withheld."
+        return agent_text
 
     if decision.action == "quarantine":
+        agent_text = (
+            f"[QUARANTINED] Email from {email.sender} ({email.date[:10]}) was quarantined: "
+            f"{inj.reason}. Content withheld."
+        )
         log_audit(
             agent=agent,
             tool="read",
@@ -383,13 +453,12 @@ def read(
             reason=decision.reason,
             redactions=[],
             injection=inj,
+            returned_text=agent_text,
         )
-        return (
-            f"[QUARANTINED] Email from {email.sender} ({email.date[:10]}) was quarantined: "
-            f"{inj.reason}. Content withheld."
-        )
+        return agent_text
 
     if decision.action == "deny":
+        agent_text = f"[WITHHELD] Email '{email_id}' access denied by user policy for category '{cls.category}'."
         log_audit(
             agent=agent,
             tool="read",
@@ -400,19 +469,22 @@ def read(
             reason=decision.reason,
             redactions=[],
             injection=inj,
+            returned_text=agent_text,
         )
-        return (
-            f"[WITHHELD] Email '{email_id}' access denied by user policy for category '{cls.category}'."
-        )
+        return agent_text
 
     if decision.action == "ask":
-        req_id = create_approval_request(
-            agent=agent,
-            tool="read",
-            query=email_id,
-            email_ids=[email.id],
-            categories=[cls.category],
-        )
+        existing_id = find_pending_request(agent, "read", [email.id])
+        if existing_id is not None:
+            req_id = existing_id
+        else:
+            req_id = create_approval_request(
+                agent=agent,
+                tool="read",
+                query=email_id,
+                email_ids=[email.id],
+                categories=[cls.category],
+            )
 
         effective_timeout = timeout if timeout is not None else config.approval_timeout
         if effective_timeout > 0:
@@ -438,6 +510,14 @@ def read(
                         if policy.protection_level == "strict":
                             sender_str, r_sender = redact(email.sender, level="strict")
                         all_redactions = r_subj + r_body + r_sender
+                        ret = (
+                            f"Email [{email.id}]\n"
+                            f"From: {sender_str}\n"
+                            f"To: {email.to}\n"
+                            f"Date: {email.date}\n"
+                            f"Subject: {redacted_subj}\n\n"
+                            f"{redacted_body}"
+                        )
                         log_audit(
                             agent=agent,
                             tool="read",
@@ -448,16 +528,11 @@ def read(
                             reason=f"Category '{cls.category}' approved by user",
                             redactions=all_redactions,
                             injection=inj,
+                            returned_text=ret,
                         )
-                        return (
-                            f"Email [{email.id}]\n"
-                            f"From: {sender_str}\n"
-                            f"To: {email.to}\n"
-                            f"Date: {email.date}\n"
-                            f"Subject: {redacted_subj}\n\n"
-                            f"{redacted_body}"
-                        )
+                        return ret
                     elif req["status"] == "denied":
+                        agent_text = f"[WITHHELD] Email '{email_id}' access denied by user."
                         log_audit(
                             agent=agent,
                             tool="read",
@@ -468,11 +543,16 @@ def read(
                             reason=f"Category '{cls.category}' denied by user",
                             redactions=[],
                             injection=inj,
+                            returned_text=agent_text,
                         )
-                        return f"[WITHHELD] Email '{email_id}' access denied by user."
+                        return agent_text
                     break
                 time.sleep(0.5)
 
+        agent_text = (
+            f"[PENDING APPROVAL] Email '{email_id}' ({cls.category}) requires user approval "
+            f"(request #{req_id}). Call check_approval({req_id}) later."
+        )
         log_audit(
             agent=agent,
             tool="read",
@@ -483,12 +563,9 @@ def read(
             reason=decision.reason,
             redactions=[],
             injection=inj,
+            returned_text=agent_text,
         )
-        return (
-            f"[PENDING APPROVAL] Email '{email_id}' ({cls.category}) requires user approval "
-            f"(request #{req_id}). Call check_approval({req_id}) later."
-        )
-
+        return agent_text
 
     # Allowed: strip hidden text and redact
     body = visible_text(email)
@@ -508,6 +585,14 @@ def read(
         sender_str, r_sender = redact(email.sender, level="strict")
 
     all_redactions = r_subj + r_body + r_sender
+    ret = (
+        f"Email [{email.id}]\n"
+        f"From: {sender_str}\n"
+        f"To: {email.to}\n"
+        f"Date: {email.date}\n"
+        f"Subject: {redacted_subj}\n\n"
+        f"{redacted_body}"
+    )
     log_audit(
         agent=agent,
         tool="read",
@@ -518,16 +603,10 @@ def read(
         reason=decision.reason,
         redactions=all_redactions,
         injection=inj,
+        returned_text=ret,
     )
 
-    return (
-        f"Email [{email.id}]\n"
-        f"From: {sender_str}\n"
-        f"To: {email.to}\n"
-        f"Date: {email.date}\n"
-        f"Subject: {redacted_subj}\n\n"
-        f"{redacted_body}"
-    )
+    return ret
 
 
 def check_approval(agent: str, request_id: int) -> str:

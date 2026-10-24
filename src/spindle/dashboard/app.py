@@ -279,37 +279,42 @@ async def inspect_entry(
 
     # Calculate what agent saw
     what_agent_saw = ""
-    if audit_data["action"] == "passthrough":
-        what_agent_saw = email.body_text if email else ""
-    elif audit_data["action"] == "quarantine":
-        what_agent_saw = (
-            f"[QUARANTINED BY SPINDLE]\n"
-            f"Email from {email.sender if email else 'sender'} was quarantined.\n"
-            f"Reason: {audit_data['reason']}\n\n"
-            f"Content withheld from agent."
-        )
-    elif audit_data["action"] == "deny":
-        what_agent_saw = (
-            f"[WITHHELD BY USER POLICY]\n"
-            f"Category '{audit_data['category']}' access denied for this agent."
-        )
-    elif audit_data["action"] == "ask":
-        what_agent_saw = (
-            f"[PENDING USER APPROVAL]\n"
-            f"Access requires explicit user confirmation in the Spindle Dashboard."
-        )
-    elif audit_data["action"] == "allow":
-        if email:
-            policy_file = load_policy()
-            agent_policy = policy_file.agents.get(audit_data["agent"], AgentPolicy())
-            from spindle.injection import visible_text
-            clean_body = visible_text(email)
-            redacted_body, _ = redact(
-                clean_body,
-                level=agent_policy.protection_level,
-                custom_rules=agent_policy.custom_rules,
+    is_reconstructed = False
+    if audit_data.get("returned_text"):
+        what_agent_saw = audit_data["returned_text"]
+    else:
+        is_reconstructed = True
+        if audit_data["action"] == "passthrough":
+            what_agent_saw = email.body_text if email else ""
+        elif audit_data["action"] == "quarantine":
+            what_agent_saw = (
+                f"[QUARANTINED BY SPINDLE]\n"
+                f"Email from {email.sender if email else 'sender'} was quarantined.\n"
+                f"Reason: {audit_data['reason']}\n\n"
+                f"Content withheld from agent."
             )
-            what_agent_saw = redacted_body
+        elif audit_data["action"] == "deny":
+            what_agent_saw = (
+                f"[WITHHELD BY USER POLICY]\n"
+                f"Category '{audit_data['category']}' access denied for this agent."
+            )
+        elif audit_data["action"] == "ask":
+            what_agent_saw = (
+                f"[PENDING USER APPROVAL]\n"
+                f"Access requires explicit user confirmation in the Spindle Dashboard."
+            )
+        elif audit_data["action"] == "allow":
+            if email:
+                policy_file = load_policy()
+                agent_policy = policy_file.agents.get(audit_data["agent"], AgentPolicy())
+                from spindle.injection import visible_text
+                clean_body = visible_text(email)
+                redacted_body, _ = redact(
+                    clean_body,
+                    level=agent_policy.protection_level,
+                    custom_rules=agent_policy.custom_rules,
+                )
+                what_agent_saw = redacted_body
 
     return templates.TemplateResponse(
         request=request,
@@ -318,6 +323,7 @@ async def inspect_entry(
             "audit": audit_data,
             "email": email,
             "what_agent_saw": what_agent_saw,
+            "is_reconstructed": is_reconstructed,
         },
     )
 

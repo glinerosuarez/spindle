@@ -4,7 +4,7 @@ import os
 import re
 from typing import Any, Dict, List, Literal, Optional, Tuple
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import anthropic
 from spindle.config import config
@@ -39,6 +39,7 @@ class AgentDraft(BaseModel):
     max_results: int = 15
     access: List[AccessEntry] = []
     custom_rules: List[CustomRule] = []
+    send_allow: List[str] = Field(default_factory=list)
 
 
 class PolicyDraft(BaseModel):
@@ -77,6 +78,9 @@ Protection Levels:
 - standard: adds routing numbers, bank accounts, medical records, insurance IDs, medication names, DOB, street address, phone
 - strict: adds email addresses, URLs, zip codes
 
+Send Allowlist:
+- send_allow: list of addresses or @domains the agent may send to without approval (e.g. ['@northwind.io'])
+
 Rules:
 1. Modify ONLY what the user explicitly requested. Preserve all other agents, rules, and access configurations.
 2. If the user asks for restrictions, tighten the access (e.g. from allow -> ask or deny).
@@ -86,6 +90,20 @@ Rules:
 
 def compute_policy_diff(old_policy: PolicyFile, new_policy: PolicyFile) -> List[Change]:
     changes: List[Change] = []
+
+    # Check for removed agents
+    for agent_name, old_agent in old_policy.agents.items():
+        if agent_name not in new_policy.agents:
+            changes.append(
+                Change(
+                    agent=agent_name,
+                    field="agent_removed",
+                    old_val=agent_name,
+                    new_val=None,
+                    is_loosening=False,
+                    description=f"Agent '{agent_name}' was removed",
+                )
+            )
 
     # Check agents in new_policy
     for agent_name, new_agent in new_policy.agents.items():
@@ -105,6 +123,19 @@ def compute_policy_diff(old_policy: PolicyFile, new_policy: PolicyFile) -> List[
             continue
 
         old_agent = old_policy.agents[agent_name]
+
+        # 0. Description check
+        if old_agent.description != new_agent.description:
+            changes.append(
+                Change(
+                    agent=agent_name,
+                    field="description",
+                    old_val=old_agent.description,
+                    new_val=new_agent.description,
+                    is_loosening=False,
+                    description=f"Agent '{agent_name}' description updated",
+                )
+            )
 
         # 1. Passthrough check
         if not old_agent.passthrough and new_agent.passthrough:
@@ -202,10 +233,11 @@ def compute_policy_diff(old_policy: PolicyFile, new_policy: PolicyFile) -> List[
                 )
 
         # 5. Custom rules checks
-        old_rule_names = {r.name for r in old_agent.custom_rules}
-        new_rule_names = {r.name for r in new_agent.custom_rules}
-        removed_rules = old_rule_names - new_rule_names
-        for r_name in removed_rules:
+        old_rules_by_name = {r.name: r.pattern for r in old_agent.custom_rules}
+        new_rules_by_name = {r.name: r.pattern for r in new_agent.custom_rules}
+
+        # Removed rules
+        for r_name in sorted(set(old_rules_by_name) - set(new_rules_by_name)):
             changes.append(
                 Change(
                     agent=agent_name,
@@ -216,6 +248,83 @@ def compute_policy_diff(old_policy: PolicyFile, new_policy: PolicyFile) -> List[
                     description=f"Custom redaction rule '{r_name}' was removed",
                 )
             )
+
+        # Added rules
+        for r_name in sorted(set(new_rules_by_name) - set(old_rules_by_name)):
+            changes.append(
+                Change(
+                    agent=agent_name,
+                    field="custom_rule_added",
+                    old_val=None,
+                    new_val=r_name,
+                    is_loosening=False,
+                    description=f"Custom redaction rule '{r_name}' was added",
+                )
+            )
+
+        # Pattern changed (same name, different pattern)
+        for r_name in sorted(set(old_rules_by_name) & set(new_rules_by_name)):
+            if old_rules_by_name[r_name] != new_rules_by_name[r_name]:
+                changes.append(
+                    Change(
+                        agent=agent_name,
+                        field=f"custom_rules.{r_name}",
+                        old_val=old_rules_by_name[r_name],
+                        new_val=new_rules_by_name[r_name],
+                        is_loosening=True,
+                        description="redaction rule changed; verify it still matches",
+                    )
+                )
+
+        # 6. send_allow checks
+        old_send = set(old_agent.send_allow)
+        new_send = set(new_agent.send_allow)
+
+        for entry in sorted(new_send - old_send):
+            changes.append(
+                Change(
+                    agent=agent_name,
+                    field="send_allow",
+                    old_val=None,
+                    new_val=entry,
+                    is_loosening=True,
+                    description=f"Allowed sending to '{entry}' without approval",
+                )
+            )
+
+        for entry in sorted(old_send - new_send):
+            changes.append(
+                Change(
+                    agent=agent_name,
+                    field="send_allow",
+                    old_val=entry,
+                    new_val=None,
+                    is_loosening=False,
+                    description=f"Removed sending allowlist entry '{entry}'",
+                )
+            )
+
+    # Safety check: if any agent present in both versions has a field that changed but isn't in the diff
+    for agent_name, old_agent in old_policy.agents.items():
+        if agent_name in new_policy.agents:
+            new_agent = new_policy.agents[agent_name]
+            old_dump = old_agent.model_dump()
+            new_dump = new_agent.model_dump()
+            for k in set(old_dump.keys()) | set(new_dump.keys()):
+                if old_dump.get(k) != new_dump.get(k):
+                    covered = False
+                    for c in changes:
+                        if c.agent == agent_name:
+                            if (
+                                c.field == k
+                                or c.field.startswith(f"{k}.")
+                                or c.field.startswith(f"{k}_")
+                                or (k == "custom_rules" and c.field.startswith("custom_rule"))
+                            ):
+                                covered = True
+                                break
+                    if not covered:
+                        raise PolicyAssistantError("Unexplained policy change")
 
     return changes
 
@@ -231,6 +340,7 @@ def draft_to_policy_file(draft: PolicyDraft) -> PolicyFile:
             max_results=agent_draft.max_results,
             access=access_map,
             custom_rules=agent_draft.custom_rules,
+            send_allow=agent_draft.send_allow,
         )
         agents_map[agent_draft.name] = agent_pol
 

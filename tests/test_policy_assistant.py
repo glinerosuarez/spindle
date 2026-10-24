@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
 import anthropic
 from spindle.models import (
@@ -124,3 +124,95 @@ def test_policy_unchanged_on_error():
     current_pol = make_sample_policy()
     with pytest.raises(PolicyAssistantError, match="Connection error"):
         draft_policy_with_claude("make changes", current_pol, client=mock_client)
+
+
+def test_b2_policy_assistant_send_allow_and_diff_rules():
+    # 1. Draft that copies work-agent preserves send_allow
+    draft = PolicyDraft(
+        agents=[
+            AgentDraft(
+                name="work-agent",
+                description="Work assistant",
+                passthrough=False,
+                protection_level="standard",
+                max_results=15,
+                access=[
+                    AccessEntry(category="work", action="allow"),
+                    AccessEntry(category="finance", action="ask"),
+                    AccessEntry(category="health", action="deny"),
+                ],
+                custom_rules=[CustomRule(name="comp", pattern=r"\$\d+")],
+                send_allow=["@northwind.io"],
+            )
+        ],
+        summary="Preserved work-agent",
+    )
+    pol = draft_to_policy_file(draft)
+    assert pol.agents["work-agent"].send_allow == ["@northwind.io"]
+
+    # 2. Changing the compensation regex -> a loosening change
+    old_pol = make_sample_policy()
+    old_pol.agents["work-agent"].custom_rules = [CustomRule(name="comp", pattern=r"\$\d+")]
+    new_pol_regex = make_sample_policy()
+    new_pol_regex.agents["work-agent"].custom_rules = [CustomRule(name="comp", pattern=r"\$\d{2,}")]
+    changes = compute_policy_diff(old_pol, new_pol_regex)
+    comp_change = next(c for c in changes if c.field == "custom_rules.comp")
+    assert comp_change.is_loosening is True
+    assert "redaction rule changed; verify it still matches" in comp_change.description
+
+    # 3. Adding "@gmail.com" to send_allow -> a loosening change
+    new_pol_send = make_sample_policy()
+    new_pol_send.agents["work-agent"].send_allow = ["@gmail.com"]
+    changes_send = compute_policy_diff(old_pol, new_pol_send)
+    send_change = next(c for c in changes_send if c.field == "send_allow")
+    assert send_change.is_loosening is True
+    assert send_change.new_val == "@gmail.com"
+
+    # Removing from send_allow -> tightening (not loosening)
+    pol_with_send = make_sample_policy()
+    pol_with_send.agents["work-agent"].send_allow = ["@northwind.io"]
+    pol_no_send = make_sample_policy()
+    pol_no_send.agents["work-agent"].send_allow = []
+    changes_remove_send = compute_policy_diff(pol_with_send, pol_no_send)
+    rem_send_change = next(c for c in changes_remove_send if c.field == "send_allow")
+    assert rem_send_change.is_loosening is False
+
+    # 4. Removing strict-agent -> listed with is_loosening=False
+    multi_pol = make_sample_policy()
+    multi_pol.agents["strict-agent"] = AgentPolicy(
+        description="Strict assistant",
+        passthrough=False,
+        protection_level="strict",
+        access={"work": "deny"},
+    )
+    single_pol = make_sample_policy()
+    changes_remove_agent = compute_policy_diff(multi_pol, single_pol)
+    removed_agent_change = next(c for c in changes_remove_agent if c.field == "agent_removed")
+    assert removed_agent_change.agent == "strict-agent"
+    assert removed_agent_change.is_loosening is False
+
+
+def test_b2_unexplained_change_raises_error():
+    old_pol = make_sample_policy()
+    new_pol = make_sample_policy()
+
+    # Verify normal description change passes
+    new_pol.agents["work-agent"].description = "Changed description"
+    d = compute_policy_diff(old_pol, new_pol)
+    assert any(c.field == "description" for c in d)
+
+    # Simulate an unexplained change by injecting an unhandled field into model_dump
+    original_dump = AgentPolicy.model_dump
+
+    def mock_dump(self, *args, **kwargs):
+        res = original_dump(self, *args, **kwargs)
+        if self.description == "TRIGGER_UNEXPLAINED":
+            res["mystery_field"] = "unexpected_value"
+        return res
+
+    unexplained_pol = make_sample_policy()
+    unexplained_pol.agents["work-agent"].description = "TRIGGER_UNEXPLAINED"
+
+    with patch.object(AgentPolicy, "model_dump", mock_dump):
+        with pytest.raises(PolicyAssistantError, match="Unexplained policy change"):
+            compute_policy_diff(old_pol, unexplained_pol)

@@ -42,7 +42,7 @@ Subject: {{ email.subject }}
     </div>
     <div>
       <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-bottom: 0.25rem;">
-        WHAT THE AGENT SAW
+        WHAT THE AGENT SAW {% if is_reconstructed %}<span style="color: #fbbf24; font-weight: normal;">(reconstructed)</span>{% endif %}
       </div>
       <pre style="height: 240px; color: #a5f3fc;">{{ what_agent_saw }}</pre>
     </div>
