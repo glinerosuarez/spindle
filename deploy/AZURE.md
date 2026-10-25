@@ -139,16 +139,23 @@ az webapp auth config-version upgrade \
   --resource-group spindle-rg \
   --name spindle-gateway
 
-# Configure Microsoft identity provider and authsettingsV2 with path exclusions:
+# Enable ID token issuance for OpenID Connect hybrid flow (required by EasyAuth response_type=code+id_token):
+az ad app update --id 713ed437-7b85-4886-aa06-7f473519b596 --enable-id-token-issuance true
+
+# Create Enterprise Application / Service Principal in tenant:
+az ad sp create --id 713ed437-7b85-4886-aa06-7f473519b596
+
+# Configure Microsoft identity provider and authsettingsV2 with path exclusions and allowed principal:
 # globalValidation: requireAuthentication=true, unauthenticatedClientAction=RedirectToLoginPage,
-# excludedPaths: ["/mcp", "/mcp/*", "/site", "/site/*"], disableWWWAuthenticate=true
+# excludedPaths: ["/mcp", "/mcp/*", "/site", "/site/*"], disableWWWAuthenticate=true,
+# validation.defaultAuthorizationPolicy.allowedPrincipals.identities: ["77a85bf2-6c4d-4f56-a7e6-d3e86565b51e"] (Gabriel Linero OID)
 
 # Disable unused default identity providers (Apple, GitHub, Google, Twitter, Facebook, MSA)
 # so ONLY Microsoft Entra ID authentication is active:
 az rest --method PUT \
   --uri "/subscriptions/464df81d-e069-465c-bb17-432e255ddc7c/resourceGroups/spindle-rg/providers/Microsoft.Web/sites/spindle-gateway/config/authsettingsV2?api-version=2022-03-01" \
   --body @scratch/auth_settings_update.json
-# (where auth_settings_update.json sets identityProviders.apple.enabled=false, etc.)
+# (where auth_settings_update.json sets identityProviders.apple.enabled=false, etc., and configures allowedPrincipals.identities)
 
 # 6. Deploy Zip Package
 az webapp deploy \
