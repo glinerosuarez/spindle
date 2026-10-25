@@ -41,10 +41,12 @@ from spindle.store import init_db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("spindle.cloud")
 
-# Context variable tracking current authenticated agent for remote MCP calls
-current_agent_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_agent", default="work-agent"
-)
+# Verify App Service authentication status
+WEBSITE_AUTH_ENABLED = os.environ.get("WEBSITE_AUTH_ENABLED", "").lower() == "true"
+if not WEBSITE_AUTH_ENABLED:
+    logger.warning(
+        "WEBSITE_AUTH_ENABLED is not 'True'. Client-provided X-MS-CLIENT-PRINCIPAL* headers will be ignored to prevent spoofing."
+    )
 
 APP_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -98,11 +100,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
 
 
-# Create top-level unified FastAPI app
+# Create top-level unified FastAPI app with docs disabled
 app = FastAPI(
     title="Spindle Cloud Gateway",
     docs_url=None,
     redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan,
 )
 
@@ -134,8 +137,20 @@ def get_authenticated_agent_from_key(auth_header: str | None) -> str | None:
     return None
 
 
+def is_website_auth_enabled() -> bool:
+    """Returns True if Azure App Service EasyAuth platform authentication is active."""
+    return os.environ.get("WEBSITE_AUTH_ENABLED", "").lower() == "true"
+
+
 def get_entra_principal(request: Request) -> dict[str, Any] | None:
-    """Extracts and verifies Microsoft Entra ID claims from App Service EasyAuth headers."""
+    """Extracts and verifies Microsoft Entra ID claims from App Service EasyAuth headers.
+
+    Header spoofing protection: Only trust X-MS-CLIENT-PRINCIPAL* headers if
+    Azure App Service platform authentication is actively enabled (WEBSITE_AUTH_ENABLED=True).
+    """
+    if not is_website_auth_enabled():
+        return None
+
     # Direct username header from App Service
     username = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
     if username:
@@ -167,8 +182,20 @@ def get_entra_principal(request: Request) -> dict[str, Any] | None:
 async def security_and_routing_middleware(request: Request, call_next: Callable) -> Response:
     path = request.url.path
 
-    # 1. MCP Endpoint Security (/mcp)
-    if path.startswith("/mcp"):
+    # 1. MCP Endpoint Security (/mcp and /mcp/*)
+    if path == "/mcp" or path.startswith("/mcp/"):
+        # Strip spoofed client principal headers on /mcp
+        headers = [
+            (k, v)
+            for k, v in request.scope.get("headers", [])
+            if not k.lower().startswith(b"x-ms-client-principal")
+        ]
+        request.scope["headers"] = headers
+
+        # Rewrite /mcp to /mcp/ so both forms route to the mounted Streamable HTTP subapp
+        if request.scope.get("path") == "/mcp":
+            request.scope["path"] = "/mcp/"
+
         auth_header = request.headers.get("Authorization")
         agent_name = get_authenticated_agent_from_key(auth_header)
         if not agent_name:
@@ -181,16 +208,18 @@ async def security_and_routing_middleware(request: Request, call_next: Callable)
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Set authenticated agent identity
-        token = current_agent_var.set(agent_name)
-        os.environ["SPINDLE_AGENT"] = agent_name
-        try:
-            return await call_next(request)
-        finally:
-            current_agent_var.reset(token)
+        # Agent identity is resolved per-call by tools via MCP Context; no global mutation
+        return await call_next(request)
 
     # 2. Allow public static site without authentication
     if path.startswith("/site"):
+        # Strip spoofed client principal headers on /site
+        headers = [
+            (k, v)
+            for k, v in request.scope.get("headers", [])
+            if not k.lower().startswith(b"x-ms-client-principal")
+        ]
+        request.scope["headers"] = headers
         return await call_next(request)
 
     # 3. Dashboard Endpoints: Check Microsoft Entra ID Authentication

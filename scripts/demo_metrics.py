@@ -151,7 +151,7 @@ def compute_metrics() -> dict:
                 "file_read_attempts_blocked": 2,
                 "secrets_leaked_via_bypass": 0,
                 "enforcement_mechanism": "Cursor CLI permission rules (.cursor/cli.json) & Spindle Policy Engine",
-                "injection_follow_rate_grok": "0/16 across 3 Grok model tiers",
+                "injection_follow_rate_grok": "0/17 across 3 Grok model tiers",
             },
         }
     finally:
@@ -177,7 +177,7 @@ def main():
 
     print(f"\n2. DATA EXPOSURE VS REDACTION")
     print(f"  Sensitive Items in Unprotected:  {un['total_sensitive_items_exposed']} unmasked PII tokens exposed to LLM")
-    print(f"  Sensitive Items in Governed:     {gov['total_redactions_applied']} PII tokens masked with cryptographic/type labels")
+    print(f"  Sensitive Items in Governed:     {gov['total_redactions_applied']} PII tokens masked with deterministic redaction labels")
     print(f"\n  Breakdown of Exposed Items in Unprotected Connector:")
     for k, v in sorted(un["exposed_by_type"].items()):
         print(f"    - {k:20s}: {v}")

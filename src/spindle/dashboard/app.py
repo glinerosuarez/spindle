@@ -32,7 +32,12 @@ _AUTH_TOKEN: str = os.environ.get("SPINDLE_DASHBOARD_TOKEN") or secrets.token_ur
 dashboard_dir = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(dashboard_dir / "templates"))
 
-app = FastAPI(title="Spindle Privacy Gateway Dashboard")
+app = FastAPI(
+    title="Spindle Privacy Gateway Dashboard",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 app.mount("/static", StaticFiles(directory=str(dashboard_dir / "static")), name="static")
 
 

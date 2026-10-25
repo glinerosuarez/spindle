@@ -5,7 +5,7 @@ import os
 import sys
 from typing import Optional
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from spindle.config import config
 from spindle.gateway import check_approval as gw_check_approval
 from spindle.gateway import permissions as gw_permissions
@@ -27,6 +27,24 @@ logger = logging.getLogger("spindle.mcp")
 server = MCPServer("spindle")
 
 
+def get_agent_from_context(ctx: Optional[Context] = None) -> str:
+    """Resolves agent identity per-call from MCP request headers, falling back to SPINDLE_AGENT."""
+    if ctx is not None:
+        try:
+            headers = ctx.headers
+            if headers:
+                auth = headers.get("authorization") or headers.get("Authorization")
+                if auth:
+                    from spindle.cloud import get_authenticated_agent_from_key
+
+                    agent = get_authenticated_agent_from_key(auth)
+                    if agent:
+                        return agent
+        except Exception:
+            pass
+    return os.environ.get("SPINDLE_AGENT", config.agent)
+
+
 @server.tool(
     description=(
         "Search the user's inbox. Standard Gmail operators like newer_than:7d are accepted. "
@@ -34,8 +52,12 @@ server = MCPServer("spindle")
         "privacy policy; withheld items are listed with reasons."
     )
 )
-def search_email(query: str = "", max_results: Optional[int] = None) -> str:
-    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+def search_email(
+    query: str = "",
+    max_results: Optional[int] = None,
+    ctx: Optional[Context] = None,
+) -> str:
+    agent = get_agent_from_context(ctx)
     logger.info("search_email called by agent '%s' with query='%s'", agent, query)
     return gw_search(agent=agent, query=query, max_results=max_results)
 
@@ -46,8 +68,8 @@ def search_email(query: str = "", max_results: Optional[int] = None) -> str:
         "Spindle privacy policy; withheld items are listed with reasons."
     )
 )
-def read_email(email_id: str) -> str:
-    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+def read_email(email_id: str, ctx: Optional[Context] = None) -> str:
+    agent = get_agent_from_context(ctx)
     logger.info("read_email called by agent '%s' for email_id='%s'", agent, email_id)
     return gw_read(agent=agent, email_id=email_id)
 
@@ -55,8 +77,8 @@ def read_email(email_id: str) -> str:
 @server.tool(
     description="Check the status of a pending approval request previously returned by search_email or read_email."
 )
-def check_approval(request_id: int) -> str:
-    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+def check_approval(request_id: int, ctx: Optional[Context] = None) -> str:
+    agent = get_agent_from_context(ctx)
     logger.info("check_approval called by agent '%s' for request_id=%d", agent, request_id)
     return gw_check_approval(agent=agent, request_id=request_id)
 
@@ -64,8 +86,8 @@ def check_approval(request_id: int) -> str:
 @server.tool(
     description="Send an email to specified recipients. Governed by Spindle privacy policies, recipient allowlists, secret exfiltration scanning, and rate limits."
 )
-def send_email(to: list[str], subject: str, body: str) -> str:
-    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+def send_email(to: list[str], subject: str, body: str, ctx: Optional[Context] = None) -> str:
+    agent = get_agent_from_context(ctx)
     logger.info("send_email called by agent '%s' to=%s subject='%s'", agent, to, subject)
     return gw_send_email(agent=agent, to=to, subject=subject, body=body)
 
@@ -73,8 +95,8 @@ def send_email(to: list[str], subject: str, body: str) -> str:
 @server.tool(
     description="List the privacy policies and category access rules that govern this agent."
 )
-def my_permissions() -> str:
-    agent = os.environ.get("SPINDLE_AGENT", config.agent)
+def my_permissions(ctx: Optional[Context] = None) -> str:
+    agent = get_agent_from_context(ctx)
     logger.info("my_permissions called by agent '%s'", agent)
     return gw_permissions(agent=agent)
 
