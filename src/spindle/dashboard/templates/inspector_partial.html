@@ -1,50 +1,49 @@
-<div style="display: flex; flex-direction: column; gap: 1rem;">
-  <!-- Header / Metadata -->
-  <div style="background-color: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border); font-size: 0.8rem;">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-      <span>Audit ID: <strong>#{{ audit.id }}</strong></span>
-      <span>Agent: <strong>{{ audit.agent }}</strong></span>
-      <span>Action: <strong>{{ audit.action }}</strong></span>
+<div style="display: flex; flex-direction: column; gap: 14px;">
+  <!-- Metadata Card -->
+  <div style="background-color: var(--card-hover); padding: 12px 16px; border-radius: 12px; font-size: 13px;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+      <span style="color: var(--muted);">Audit ID <strong style="color: var(--text);">#{{ audit.id }}</strong></span>
+      <span style="color: var(--muted);">Agent <strong style="color: var(--text);">{{ audit.agent }}</strong></span>
+      <span style="color: var(--muted);">Action <strong style="color: var(--text);">{{ audit.action }}</strong></span>
     </div>
-    <div style="color: var(--text-muted);">
-      Reason: <span style="color: #cbd5e1;">{{ audit.reason }}</span>
+    <div style="color: var(--muted); font-size: 12px;">
+      Reason: <span style="color: var(--text);">{{ audit.reason }}</span>
     </div>
   </div>
 
   {% if audit.injection and audit.injection.quarantine %}
   <!-- Quarantine Alert -->
-  <div style="background-color: #450a0a; border: 1px solid #ef4444; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem;">
-    <div style="color: #f87171; font-weight: bold; margin-bottom: 0.25rem;">
-      🚨 PROMPT INJECTION QUARANTINED
+  <div style="background-color: var(--danger-bg); border: 1px solid #7f1d1d; border-radius: 12px; padding: 12px 16px; font-size: 13px;">
+    <div style="color: var(--bad); font-weight: 600; margin-bottom: 4px;">
+      PROMPT INJECTION QUARANTINED
     </div>
-    <div style="color: #fca5a5; margin-bottom: 0.5rem;">
+    <div style="color: var(--danger-fg); font-size: 12px; margin-bottom: 8px;">
       {{ audit.injection.reason }}
     </div>
     {% if audit.injection.hidden_text_excerpt %}
-    <div style="background-color: #1c0505; padding: 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.75rem; color: #fecaca; border: 1px dashed #ef4444;">
-      <strong>Hidden Text Excerpt:</strong><br>
+    <div style="background-color: #1a0505; padding: 8px 12px; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--danger-fg); border: 1px dashed #7f1d1d;">
+      <strong style="color: var(--bad);">Hidden Text Excerpt:</strong><br>
       "{{ audit.injection.hidden_text_excerpt }}"
     </div>
     {% endif %}
   </div>
   {% endif %}
 
-  <!-- Side-by-side comparison -->
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-    <div>
-      <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-bottom: 0.25rem;">
-        ORIGINAL INBOX EMAIL
-      </div>
-      <pre style="height: 240px;">{% if email %}From: {{ email.sender }}
+  <!-- Vertically Stacked Comparison -->
+  <div>
+    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;">
+      ORIGINAL INBOX EMAIL
+    </div>
+    <pre style="max-height: 200px; overflow-y: auto;">{% if email %}From: {{ email.sender }}
 Subject: {{ email.subject }}
 
 {{ email.body_text }}{% else %}No content available{% endif %}</pre>
+  </div>
+
+  <div>
+    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;">
+      WHAT THE AGENT SAW {% if is_reconstructed %}<span style="color: var(--ask); font-weight: normal; text-transform: none;">(reconstructed)</span>{% endif %}
     </div>
-    <div>
-      <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-bottom: 0.25rem;">
-        WHAT THE AGENT SAW {% if is_reconstructed %}<span style="color: #fbbf24; font-weight: normal;">(reconstructed)</span>{% endif %}
-      </div>
-      <pre style="height: 240px; color: #a5f3fc;">{{ what_agent_saw }}</pre>
-    </div>
+    <pre style="max-height: 200px; overflow-y: auto; color: #e2e8f0;">{{ what_agent_saw }}</pre>
   </div>
 </div>

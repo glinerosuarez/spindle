@@ -1,47 +1,52 @@
 {% if not pending_requests %}
-<div style="padding: 0.75rem 0; color: var(--text-muted); font-size: 0.85rem;">
-  <span>✓ No pending approval requests. AI agents are running within pre-approved boundaries.</span>
-</div>
+<div></div>
 {% else %}
-<div style="display: flex; flex-direction: column; gap: 1rem;">
+<div style="display: flex; flex-direction: column; gap: 16px;">
   {% for req in pending_requests %}
-  <div style="background-color: #0f172a; border: 1px solid #d97706; border-radius: 6px; padding: 1rem;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <div>
-        <span style="font-weight: bold; color: #fbbf24;">Request #{{ req.id }}</span>
-        <span style="font-size: 0.8rem; color: var(--text-muted);"> | Agent: <strong>{{ req.agent }}</strong></span>
-      </div>
-      <div>
-        <span class="badge badge-ask">{{ req.categories_str }}</span>
-      </div>
-    </div>
-
-    <div style="margin-bottom: 0.75rem; font-size: 0.85rem;">
-      {% if req.tool == 'send_email' %}
-        <span style="color: var(--text-muted);">Outbound message requested:</span>
-        <div style="margin-top: 0.25rem; font-family: monospace; font-size: 0.8rem; background: #1e293b; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border);">
-          {{ req.query }}
+  <div class="approval-banner">
+    <div class="banner-top">
+      <div class="banner-title-wrap">
+        <svg class="banner-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <div>
+          {% if req.tool == 'send_email' %}
+            <strong>{{ req.agent }}</strong> wants to send an email{% if req.categories_str %} · {{ req.categories_str }}{% endif %}
+          {% else %}
+            <strong>{{ req.agent }}</strong> wants access to {{ req.emails|length }} email{% if req.emails|length != 1 %}s{% endif %}{% if req.categories_str %} · {{ req.categories_str }}{% endif %}
+          {% endif %}
         </div>
-      {% else %}
-        <span style="color: var(--text-muted);">Emails requested:</span>
-        <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
-          {% for em in req.emails %}
-            <li><strong>[{{ em.id }}]</strong> {{ em.sender }} &mdash; <em>{{ em.subject }}</em></li>
-          {% endfor %}
-        </ul>
-      {% endif %}
+      </div>
+      <div class="banner-actions">
+        <form hx-post="/deny/{{ req.id }}" hx-target="#approvals-container" hx-swap="innerHTML" style="display: inline;">
+          <input type="hidden" name="token" value="{{ token }}">
+          <button type="submit" class="btn btn-secondary">Deny</button>
+        </form>
+        <form hx-post="/approve/{{ req.id }}" hx-target="#approvals-container" hx-swap="innerHTML" style="display: inline;">
+          <input type="hidden" name="token" value="{{ token }}">
+          <button type="submit" class="btn btn-primary">Approve</button>
+        </form>
+      </div>
     </div>
 
-    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-      <form hx-post="/approve/{{ req.id }}" hx-target="#approvals-container" hx-swap="innerHTML" style="display: inline;">
-        <input type="hidden" name="token" value="{{ token }}">
-        <button type="submit" class="btn btn-approve">✓ Approve Access</button>
-      </form>
-      <form hx-post="/deny/{{ req.id }}" hx-target="#approvals-container" hx-swap="innerHTML" style="display: inline;">
-        <input type="hidden" name="token" value="{{ token }}">
-        <button type="submit" class="btn btn-deny">✕ Deny</button>
-      </form>
+    {% if req.tool == 'send_email' %}
+    <div class="banner-details">
+      <div style="font-size: 13px; color: var(--muted); margin-bottom: 6px;">Outbound message requested:</div>
+      <pre class="banner-mono">{{ req.query }}</pre>
     </div>
+    {% else %}
+    <div class="banner-details">
+      <div class="banner-list">
+        {% for em in req.emails %}
+          <div class="banner-email-item">
+            <span class="banner-email-id">[{{ em.id }}]</span> {{ em.sender }} &mdash; <em>{{ em.subject }}</em>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

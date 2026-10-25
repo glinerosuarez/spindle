@@ -1,81 +1,83 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="grid-container">
-  <!-- Left Column: Approvals and Live Feed -->
-  <div class="left-col">
-    <!-- 1. Approval Queue -->
-    <div class="card" id="approval-queue-card">
-      <div class="card-title">
-        <span>Pending Approvals</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Real-time gating</span>
-      </div>
-      <div id="approvals-container" hx-get="/approvals" hx-trigger="load, every 2s" hx-swap="innerHTML">
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Checking for pending approval requests...</p>
-      </div>
-    </div>
+<div class="page-header">
+  <h1 class="page-title">Alex's inbox</h1>
+  <div class="page-subtitle">Freelance consultant · alex.rivera.consulting@gmail.com</div>
+</div>
 
-    <!-- 2. Live Audit Feed -->
-    <div class="card">
-      <div class="card-title">
-        <span>Live Gateway Audit Feed</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Auto-refreshes every 2s</span>
-      </div>
-      <div id="feed-container" hx-get="/feed" hx-trigger="load, every 2s" hx-swap="innerHTML">
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Connecting to gateway audit log...</p>
-      </div>
-    </div>
+<!-- Approval Queue (Banner) -->
+<section id="approvals">
+  <div id="approvals-container" hx-get="/approvals" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
+</section>
 
-    <!-- 3. Governed Outbox Feed -->
-    <div class="card">
-      <div class="card-title">
-        <span>Governed Outbox (send_email)</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Auto-refreshes every 2s</span>
-      </div>
-      <div id="outbox-container" hx-get="/outbox" hx-trigger="load, every 2s" hx-swap="innerHTML">
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Checking governed outbox...</p>
-      </div>
+<!-- Middle Grid: Feed + Sticky Inspector -->
+<div class="middle-grid" id="activity">
+  <!-- Activity (feed) Card -->
+  <div class="card" id="feed-card">
+    <div class="card-title">
+      <span>Activity</span>
+      <span style="font-size: 12px; color: var(--faint);">Auto-refreshes 2s</span>
+    </div>
+    <div id="feed-container" hx-get="/feed" hx-trigger="load, every 2s" hx-swap="innerHTML">
+      <p style="color: var(--muted); font-size: 13px;">Connecting to gateway audit log...</p>
     </div>
   </div>
 
-  <!-- Right Column: Inspector & Policy Controls -->
-  <div class="right-col">
-    <!-- 3. Email Inspector -->
-    <div class="card">
-      <div class="card-title">
-        <span>Email Inspector</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Click any feed row</span>
-      </div>
-      <div id="inspector-container">
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Click any row in the audit feed to inspect the original email vs what the AI agent saw.</p>
-      </div>
+  <!-- Inspector Card -->
+  <div class="card sticky-inspector" id="inspector-card">
+    <div class="card-title">
+      <span>Inspector</span>
+      <span style="font-size: 12px; color: var(--faint);">Click any feed row</span>
     </div>
-
-    <!-- 4. Policy Manager -->
-    <div class="card">
-      <div class="card-title">
-        <span>Agent Policies</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Zero-restart reload</span>
-      </div>
-      <div id="policy-container" hx-get="/policies" hx-trigger="load" hx-swap="innerHTML">
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Loading policies...</p>
-      </div>
-    </div>
-
-    <!-- 5. Policy Assistant (Claude) -->
-    <div class="card">
-      <div class="card-title">
-        <span>✨ Policy Assistant (Claude)</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Plain English → Verified Policy</span>
-      </div>
-      <form hx-post="/assistant/draft" hx-target="#assistant-result" hx-swap="innerHTML">
-        <input type="hidden" name="token" value="{{ token }}">
-        <textarea name="instruction" placeholder="e.g. My work agent should never see anything medical or financial, and ask me before showing personal emails." style="width: 100%; height: 70px; background: #0f172a; color: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-size: 0.8rem; margin-bottom: 0.5rem; font-family: inherit; resize: vertical;" required></textarea>
-        <button type="submit" class="btn btn-primary" style="margin-bottom: 0.75rem;">Draft with Claude</button>
-      </form>
-      <div id="assistant-result"></div>
+    <div id="inspector-container">
+      {% if initial_inspector_html %}
+        {{ initial_inspector_html | safe }}
+      {% else %}
+        <p style="color: var(--muted); font-size: 13px;">Click any row in the activity feed to inspect the original email vs what the AI agent saw.</p>
+      {% endif %}
     </div>
   </div>
 </div>
 
+<!-- Bottom Grid: Agents & Policies, Outbox, Policy Assistant -->
+<div class="bottom-grid">
+  <!-- Agents & Policies -->
+  <div class="card" id="agents">
+    <div class="card-title">
+      <span>Agents &amp; policies</span>
+      <span style="font-size: 12px; color: var(--faint);">Zero-restart reload</span>
+    </div>
+    <div id="policy-container" hx-get="/policies" hx-trigger="load" hx-swap="innerHTML">
+      <p style="color: var(--muted); font-size: 13px;">Loading policies...</p>
+    </div>
+  </div>
+
+  <!-- Governed Outbox -->
+  <div class="card" id="outbox">
+    <div class="card-title">
+      <span>Outbox</span>
+      <span style="font-size: 12px; color: var(--faint);">Auto-refreshes 2s</span>
+    </div>
+    <div id="outbox-container" hx-get="/outbox" hx-trigger="load, every 2s" hx-swap="innerHTML">
+      <p style="color: var(--muted); font-size: 13px;">Checking governed outbox...</p>
+    </div>
+  </div>
+
+  <!-- Policy Assistant -->
+  <div class="card" id="assistant">
+    <div class="card-title">
+      <span>Policy assistant</span>
+      <span style="font-size: 12px; color: var(--faint);">Plain English → Verified Policy</span>
+    </div>
+    <form hx-post="/assistant/draft" hx-target="#assistant-result" hx-swap="innerHTML">
+      <input type="hidden" name="token" value="{{ token }}">
+      <textarea name="instruction" class="input-textarea" placeholder="e.g. My work agent should never see anything medical or financial, and ask me before showing personal emails." required></textarea>
+      <div style="margin-top: 12px;">
+        <button type="submit" class="btn btn-primary">Draft with Claude</button>
+      </div>
+    </form>
+    <div id="assistant-result" style="margin-top: 12px;"></div>
+  </div>
+</div>
 {% endblock %}

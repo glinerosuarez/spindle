@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spindle — Local Privacy Gateway for Autonomous AI Agents</title>
+  <title>Spindle — Privacy Gateway for Autonomous AI Agents</title>
   <meta name="description" content="Spindle sits between autonomous AI agents and your personal inbox, enforcing deterministic data redaction, prompt injection quarantine, and human approval.">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,16 +12,20 @@
   <header>
     <div class="container nav-wrap">
       <a href="#" class="brand">
-        <span>🧵 Spindle</span>
-        <span class="brand-badge">Azure Edition</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+          <path d="M2 17l10 5 10-5"></path>
+          <path d="M2 12l10 5 10-5"></path>
+        </svg>
+        <span>Spindle</span>
       </a>
       <div class="nav-links">
-        <a href="#problem">Problem</a>
-        <a href="#how-it-works">Architecture</a>
-        <a href="#comparison">Before & After</a>
-        <a href="#metrics">Measured Impact</a>
-        <a href="#microsoft">Track Criteria</a>
+        <a href="#problem" class="nav-item">Problem</a>
+        <a href="#how-it-works" class="nav-item">Architecture</a>
+        <a href="#comparison" class="nav-item">Before &amp; After</a>
+        <a href="#metrics" class="nav-item">Measured Impact</a>
         <a href="https://github.com/glinerosuarez/spindle" target="_blank" class="btn btn-secondary">GitHub</a>
+        <a href="https://spindle-gateway.azurewebsites.net/" class="btn btn-primary">Sign in</a>
       </div>
     </div>
   </header>
@@ -29,13 +33,13 @@
   <main class="container">
     <!-- Hero Section -->
     <section class="hero">
-      <div class="brand-badge" style="margin-bottom: 1rem; display: inline-block;">Cal Hacks 13.0 Project</div>
-      <h1>The Local-First Privacy Gateway<br>for Autonomous AI Agents</h1>
+      <h1>You decide what your AI agent can see in your inbox.</h1>
       <p class="subtitle">
-        When you give an AI assistant access to your inbox, it reads everything: passwords, salaries, medical records, and family phone numbers. Spindle governs agent access with deterministic policy gates, prompt injection quarantine, and deterministic PII redaction.
+        Spindle is a privacy gateway between AI agents and your email: per-agent rules, redaction, approval and an audit trail.
       </p>
       <div class="hero-actions">
-        <a href="https://github.com/glinerosuarez/spindle" target="_blank" class="btn btn-primary">View Source Code</a>
+        <a href="https://spindle-gateway.azurewebsites.net/" class="btn btn-primary">Sign in</a>
+        <a href="https://github.com/glinerosuarez/spindle" target="_blank" class="btn btn-secondary">View source</a>
         <a href="#video" class="btn btn-secondary">Watch Demo (Coming Soon)</a>
       </div>
     </section>
@@ -43,7 +47,7 @@
     <!-- The Problem -->
     <section id="problem" class="arch-card">
       <h3>The Problem: All-or-Nothing Agent Access</h3>
-      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+      <p style="color: var(--muted); margin-bottom: 1rem;">
         Modern AI agents (Claude Code, Cursor CLI, OpenAI Operator) communicate with tools over the Model Context Protocol (MCP). Standard email connectors provide unconditional read access to every message. If an agent executes a routine inbox search, raw verification OTPs, medical lab results, and corporate salaries are sent unmasked to cloud LLM providers, while invisible HTML prompt injections can silently hijack the agent's instructions.
       </p>
     </section>
@@ -51,7 +55,7 @@
     <!-- How Spindle Works -->
     <section id="how-it-works" class="arch-card">
       <h3>How Spindle Works: The 4-Layer Security Pipeline</h3>
-      <p style="color: var(--text-muted);">
+      <p style="color: var(--muted);">
         Spindle functions as an intelligent reverse proxy. Every tool call from the agent passes through four sequential gates before any data reaches the model context:
       </p>
       <div class="pipeline">
@@ -61,7 +65,7 @@
         </div>
         <div class="pipeline-step">
           <h4>2. Dual-Stage Classifier</h4>
-          <p>Deterministic keyword rules + local SLM classify messages into 8 categories (Work, Personal, Finance, Health, Auth, etc.).</p>
+          <p>Rules first, plus an optional LLM signal on pre-redacted text.</p>
         </div>
         <div class="pipeline-step">
           <h4>3. Injection Guard</h4>
@@ -76,7 +80,7 @@
 
     <!-- Before & After Comparison -->
     <section id="comparison">
-      <h2 class="section-title">Before & After: Rehearsal Email Audit</h2>
+      <h2 class="section-title">Before &amp; After: Rehearsal Email Audit</h2>
       <p class="section-desc">Comparing what an AI model observes in raw passthrough vs. Spindle-governed MCP.</p>
       
       <div class="comparison-grid">
@@ -134,13 +138,13 @@ Reason: Category "health" is strictly denied.
     <!-- Measured Impact -->
     <section id="metrics" class="arch-card">
       <h3>Empirically Measured Results (Alex Rivera Inbox Benchmark)</h3>
-      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-        Measured using <code>scripts/demo_metrics.py</code> across 17 realistic enterprise & personal inbox fixtures:
+      <p style="color: var(--muted); margin-bottom: 1.5rem;">
+        Measured using <code>scripts/demo_metrics.py</code> across 17 realistic enterprise &amp; personal inbox fixtures:
       </p>
       <table class="metrics-table">
         <thead>
           <tr>
-            <th>Security & Privacy Metric</th>
+            <th>Security &amp; Privacy Metric</th>
             <th>Standard Unprotected Connector</th>
             <th>Spindle Privacy Gateway</th>
           </tr>
@@ -193,7 +197,7 @@ Reason: Category "health" is strictly denied.
       <div class="criteria-grid">
         <!-- 1. Customer Understanding -->
         <div class="criteria-card">
-          <h3>🎯 1. Customer Understanding</h3>
+          <h3>1. Customer Understanding</h3>
           <p>
             Users adopting autonomous desktop agents (Claude Code, Cursor CLI, Copilot) frequently hit an unsettling barrier: personal and work contexts collide. As highlighted by privacy leaders and industry research, once private data enters agent context windows, it moves across third-party LLM pipelines with zero governance. Spindle is built for the thousands of developers and professionals who want agent assistance without forfeiting inbox confidentiality.
           </p>
@@ -201,7 +205,7 @@ Reason: Category "health" is strictly denied.
 
         <!-- 2. Measurable Usefulness -->
         <div class="criteria-card">
-          <h3>📊 2. Measurable Usefulness</h3>
+          <h3>2. Measurable Usefulness</h3>
           <p>
             Spindle's impact is quantifiable: in an inbox of 17 emails, Spindle reduces exposed sensitive tokens from 38 down to 0, shields 100% of medical and auth secrets, and drops unauthorized personal exposure by 58.8% (holding 3 personal/financial emails in human approval queue). In rigorous automated testing, permission rules stopped 100% of directory and policy bypass attempts (3/3 blocked, 0/17 injection exfiltration across Grok model tiers).
           </p>
@@ -209,7 +213,7 @@ Reason: Category "health" is strictly denied.
 
         <!-- 3. Path to Production -->
         <div class="criteria-card">
-          <h3>☁️ 3. Path to Production (Azure)</h3>
+          <h3>3. Path to Production (Azure)</h3>
           <p>
             Spindle separates the <strong>Control Plane</strong> (hosted on Azure App Service with Microsoft Entra ID authentication and Azure Key Vault for per-agent secrets) from the <strong>Data Plane</strong> (local stdio or Streamable-HTTP MCP). Policies are signed by the user, and remote agents authenticate via per-agent Bearer tokens.
           </p>
@@ -217,7 +221,7 @@ Reason: Category "health" is strictly denied.
 
         <!-- 4. Responsible Design -->
         <div class="criteria-card">
-          <h3>🛡️ 4. Responsible Design</h3>
+          <h3>4. Responsible Design</h3>
           <p>
             Spindle adheres to fail-closed, defense-in-depth principles: deterministic regex filters take absolute precedence over probabilistic LLM decisions; an immutable SQLite audit trail preserves the exact text seen by every agent; and all sensitive PII is stripped before any text touches language models.
           </p>
@@ -225,7 +229,7 @@ Reason: Category "health" is strictly denied.
 
         <!-- 5. End-to-End Functionality -->
         <div class="criteria-card" style="grid-column: 1 / -1;">
-          <h3>🚀 5. End-to-End Functionality</h3>
+          <h3>5. End-to-End Functionality</h3>
           <p>
             Spindle is fully operational today: a complete local gateway running over stdio MCP in Cursor CLI and Claude Code, alongside a hosted cloud deployment on Azure App Service featuring Microsoft Entra ID single sign-on, a real-time policy dashboard, and live human-in-the-loop approval workflows.
           </p>
@@ -236,7 +240,7 @@ Reason: Category "health" is strictly denied.
 
   <footer>
     <div class="container">
-      <p>Spindle Privacy Gateway — Built for Cal Hacks 13.0 | Licensed under MIT</p>
+      <p>Spindle Privacy Gateway &mdash; Built for Cal Hacks 13.0 | Licensed under MIT</p>
     </div>
   </footer>
 

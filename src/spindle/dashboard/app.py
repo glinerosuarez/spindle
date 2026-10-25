@@ -97,10 +97,12 @@ def verify_post_auth(
 async def index(
     request: Request,
     token: Optional[str] = Query(None),
+    inspect: Optional[int] = Query(None),
 ):
     # If token passed in query, set cookie and redirect to clean URL
     if token == _AUTH_TOKEN:
-        response = RedirectResponse(url="/", status_code=303)
+        redirect_url = f"/?inspect={inspect}" if inspect else "/"
+        response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(
             key="spindle_token",
             value=_AUTH_TOKEN,
@@ -112,8 +114,22 @@ async def index(
     # Otherwise verify cookie / query auth
     verify_auth(request, token)
 
+    user_identity = "Local session"
+    user_initials = "GL" if "linero" in config.agent.lower() or os.environ.get("USER", "").lower() == "gabriel.linero" else "LS"
+    if os.environ.get("WEBSITE_AUTH_ENABLED", "").lower() == "true":
+        principal_name = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if principal_name:
+            user_identity = principal_name
+            user_initials = "GL" if "linero" in principal_name.lower() else principal_name[:2].upper()
+
     init_db()
     policy_file = load_policy()
+
+    initial_inspector_html = None
+    if inspect:
+        insp_resp = await inspect_entry(request, inspect, auth=_AUTH_TOKEN)
+        initial_inspector_html = insp_resp.body.decode("utf-8")
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -122,6 +138,9 @@ async def index(
             "policy_file": policy_file,
             "agent": config.agent,
             "llm_is_local": config.llm_is_local(),
+            "user_identity": user_identity,
+            "user_initials": user_initials,
+            "initial_inspector_html": initial_inspector_html,
         },
     )
 
@@ -431,8 +450,8 @@ async def apply_assistant_policy(
     logger.info("Policy updated via Claude policy assistant: %s", draft.summary)
 
     return HTMLResponse(
-        "<div style='background-color: #064e3b; border: 1px solid #10b981; border-radius: 6px; padding: 0.75rem; color: #a7f3d0; margin-bottom: 1rem;'>"
-        "✓ Policy successfully updated and saved! All AI agent calls are now governed by the updated rules."
+        "<div style='background-color: var(--card-hover); border-radius: 12px; padding: 12px 16px; color: var(--ok); margin-bottom: 1rem; font-size: 13px;'>"
+        "Policy successfully updated and saved. All AI agent calls are now governed by the updated rules."
         "</div>"
     )
 

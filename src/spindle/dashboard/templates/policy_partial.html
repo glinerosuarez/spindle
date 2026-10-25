@@ -1,50 +1,61 @@
-<div style="display: flex; flex-direction: column; gap: 1.25rem;">
+<div style="display: flex; flex-direction: column; gap: 12px;">
   {% for agent_name, pol in policy_file.agents.items() %}
-  <div style="background-color: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 1rem;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <span style="font-weight: bold; color: var(--primary);">{{ agent_name }}</span>
+  <div style="background-color: var(--card-hover); border-radius: 14px; padding: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-weight: 500; font-size: 14px; color: var(--text);">{{ agent_name }}</span>
       {% if pol.passthrough %}
-        <span class="badge badge-passthrough">UNPROTECTED</span>
+        <span class="pill-unprotected">UNPROTECTED</span>
       {% else %}
-        <span class="badge badge-allow">PROTECTED</span>
+        <span class="status-dot"><span class="dot dot-ok"></span>Protected</span>
       {% endif %}
     </div>
 
-    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+    <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
       {{ pol.description or "No description provided." }}
     </p>
 
     {% if not pol.passthrough %}
     <!-- Protection Level Selector -->
-    <div style="margin-bottom: 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
-      <span style="color: var(--text-muted);">Protection Level:</span>
-      <form hx-post="/policy/update_level" hx-target="#policy-container" hx-swap="innerHTML" style="display: inline-flex; gap: 0.5rem;">
+    <div style="margin-bottom: 12px; font-size: 12px; display: flex; align-items: center; gap: 8px;">
+      <span style="color: var(--muted);">Protection level:</span>
+      <form hx-post="/policy/update_level" hx-target="#policy-container" hx-swap="innerHTML" style="display: inline-flex; gap: 8px;">
         <input type="hidden" name="token" value="{{ token }}">
         <input type="hidden" name="agent_name" value="{{ agent_name }}">
-        <select name="level" onchange="this.form.requestSubmit()" style="background: #1e293b; color: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem;">
-          <option value="light" {% if pol.protection_level == 'light' %}selected{% endif %}>light (auth & card only)</option>
-          <option value="standard" {% if pol.protection_level == 'standard' %}selected{% endif %}>standard (PII & Health IDs baseline)</option>
-          <option value="strict" {% if pol.protection_level == 'strict' %}selected{% endif %}>strict (contact & URLs)</option>
+        <select name="level" onchange="this.form.requestSubmit()" class="select-dropdown">
+          <option value="light" {% if pol.protection_level == 'light' %}selected{% endif %}>light (auth &amp; card only)</option>
+          <option value="standard" {% if pol.protection_level == 'standard' %}selected{% endif %}>standard (PII &amp; Health IDs baseline)</option>
+          <option value="strict" {% if pol.protection_level == 'strict' %}selected{% endif %}>strict (contact &amp; URLs)</option>
         </select>
       </form>
     </div>
 
-    <!-- Category Access Table -->
-    <div style="margin-bottom: 0.5rem;">
-      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">CATEGORY ACCESS</span>
-      <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+    <!-- Category Access -->
+    <div style="margin-bottom: 10px;">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;">
+        Category Access
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 4px;">
         {% for cat, act in pol.access.items() %}
-          <span style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: #1e293b; border: 1px solid var(--border);">
-            {{ cat }}: <strong style="color: {% if act == 'allow' %}#34d399{% elif act == 'ask' %}#fbbf24{% else %}#ef4444{% endif %};">{{ act }}</strong>
+          <span style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: var(--bg); color: var(--muted); display: inline-flex; align-items: center; gap: 4px;">
+            <span>{{ cat }}:</span>
+            {% if act == 'allow' %}
+              <strong style="color: var(--ok);">{{ act }}</strong>
+            {% elif act == 'ask' %}
+              <strong style="color: var(--ask);">{{ act }}</strong>
+            {% else %}
+              <strong style="color: var(--bad);">{{ act }}</strong>
+            {% endif %}
           </span>
         {% endfor %}
       </div>
     </div>
 
     {% if pol.custom_rules %}
-    <div style="margin-top: 0.5rem;">
-      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">CUSTOM RULES</span>
-      <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+    <div>
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;">
+        Custom Rules
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 4px;">
         {% for cr in pol.custom_rules %}
           <span class="chip">{{ cr.name }}</span>
         {% endfor %}
