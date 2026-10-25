@@ -6,6 +6,7 @@
       "Write(**)",
       "WebFetch(*)",
       "Read(/Users/gabriel.linero/.spindle/**)",
+      "Read(/Users/gabriel.linero/.spindle-check/**)",
       "Read(/Users/gabriel.linero/projects/spindle/**)"
     ]
   }

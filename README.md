@@ -161,6 +161,8 @@ Ask the agent the same prompt:
 4. In Cursor CLI, ask: *"Summarize my bank statement."*
 5. The agent receives the statement with the account number masked: `[REDACTED:bank_account]`.
 
+> **Note on Approval Timeouts:** Configured via `SPINDLE_APPROVAL_TIMEOUT=50`. Cursor CLI cuts MCP calls off at ~60s; keep this below that. (Claude Code with `MCP_TOOL_TIMEOUT=120000` allows up to ~110.)
+
 ### Beat 4: Claude Policy Assistant
 In the dashboard's **Policy Assistant** panel, type in plain English:
 > *"Never show my work agent anything personal, and use strict redaction."*
