@@ -29,6 +29,7 @@ server = MCPServer("spindle")
 
 def get_agent_from_context(ctx: Optional[Context] = None) -> str:
     """Resolves agent identity per-call from MCP request headers, falling back to SPINDLE_AGENT."""
+    is_remote = os.environ.get("SPINDLE_REMOTE") in ("1", "true", "True")
     if ctx is not None:
         try:
             headers = ctx.headers
@@ -42,6 +43,11 @@ def get_agent_from_context(ctx: Optional[Context] = None) -> str:
                         return agent
         except Exception:
             pass
+
+    # In remote/cloud mode, fail closed if no authenticated agent could be resolved
+    if is_remote:
+        return "__unauthenticated__"
+
     return os.environ.get("SPINDLE_AGENT", config.agent)
 
 

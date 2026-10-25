@@ -144,3 +144,26 @@ async def test_mcp_concurrent_per_call_agent_isolation(monkeypatch):
             assert "strict" in text
             assert "Max Results: 5" in text
             assert "strict-agent" in text
+
+
+def test_mcp_fail_closed_when_header_read_raises(monkeypatch):
+    """Verifies A6: when SPINDLE_REMOTE is active and header read fails, fails closed to deny-all policy."""
+    monkeypatch.setenv("SPINDLE_REMOTE", "1")
+    monkeypatch.delenv("SPINDLE_AGENT", raising=False)
+
+    class BrokenContext:
+        @property
+        def headers(self):
+            raise RuntimeError("Corrupted transport header stream")
+
+    from spindle.mcp_server import get_agent_from_context, my_permissions
+
+    agent = get_agent_from_context(BrokenContext())
+    assert agent == "__unauthenticated__"
+
+    perms = my_permissions(BrokenContext())
+    assert "Implicit policy for unknown agent '__unauthenticated__' (deny all)" in perms
+    assert "travel: deny" in perms
+    assert "work: deny" in perms
+    assert "standard" not in perms
+

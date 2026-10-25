@@ -30,6 +30,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 if "SPINDLE_HOME" not in os.environ:
     os.environ["SPINDLE_HOME"] = "/tmp/spindle"
 
+# Declare cloud remote execution mode for fail-closed security
+os.environ["SPINDLE_REMOTE"] = "1"
+
 from spindle.classifier import classify
 from spindle.config import config
 from spindle.dashboard.app import app as dashboard_app, get_token

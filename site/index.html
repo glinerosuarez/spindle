@@ -84,7 +84,7 @@
         <div class="panel danger">
           <div class="panel-header">
             <h4>Standard Inbox Connector (Unprotected)</h4>
-            <span class="badge-danger">38 Sensitive Items Exposed</span>
+            <span class="badge-danger">21 Sensitive Values + 17 Senders Exposed</span>
           </div>
           <div class="email-sample">
 <span class="leak-highlight">[e05] Google Accounts &lt;security@accounts.google.com&gt;</span>
@@ -154,17 +154,22 @@ Reason: Category "health" is strictly denied.
           <tr>
             <td><strong>Withheld Sensitive Categories (Auth / Health)</strong></td>
             <td>0 (Both delivered in raw text)</td>
-            <td><strong>5 emails withheld completely</strong></td>
+            <td><strong>5 emails withheld completely (2 auth, 3 health)</strong></td>
           </tr>
           <tr>
-            <td><strong>Quarantined Prompt Injections (e15, e17)</strong></td>
+            <td><strong>Held for Human Confirmation (Personal / Finance)</strong></td>
+            <td>0 (Delivered without consent)</td>
+            <td><strong>3 emails queued for approval (e03, e12, e16)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Quarantined Prompt Injections</strong></td>
             <td>0 (Delivered to model prompt)</td>
-            <td><strong>2 emails quarantined with audit alert</strong></td>
+            <td><strong>2 emails quarantined (e15 EchoLeak hidden-text &amp; e17 visible override)</strong></td>
           </tr>
           <tr>
             <td><strong>Sensitive Tokens Exposed to LLM</strong></td>
-            <td>38 unmasked PII tokens</td>
-            <td><strong>0 secrets exposed (1 deterministic redaction label)</strong></td>
+            <td>38 unmasked tokens (21 sensitive values + 17 sender email addresses)</td>
+            <td><strong>0 secrets exposed (1 label in search snippets, 4 in full bodies)</strong></td>
           </tr>
           <tr>
             <td><strong>Sandbox Bypass Resistance (Shell / File Read)</strong></td>
@@ -198,7 +203,7 @@ Reason: Category "health" is strictly denied.
         <div class="criteria-card">
           <h3>📊 2. Measurable Usefulness</h3>
           <p>
-            Spindle's impact is quantifiable: in an inbox of 17 emails, Spindle reduces exposed sensitive tokens from 38 down to 0, shields 100% of medical and auth secrets, and drops unauthorized personal exposure by 58.8%. In rigorous automated testing, permission rules stopped 100% of directory and policy bypass attempts (3/3 blocked, 0/17 injection exfiltration).
+            Spindle's impact is quantifiable: in an inbox of 17 emails, Spindle reduces exposed sensitive tokens from 38 down to 0, shields 100% of medical and auth secrets, and drops unauthorized personal exposure by 58.8% (holding 3 personal/financial emails in human approval queue). In rigorous automated testing, permission rules stopped 100% of directory and policy bypass attempts (3/3 blocked, 0/17 injection exfiltration across Grok model tiers).
           </p>
         </div>
 

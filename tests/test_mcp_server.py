@@ -16,6 +16,7 @@ async def test_mcp_server_work_agent():
             "LLM_ENABLED": "false",
             "SPINDLE_AGENT": "work-agent",
             "SPINDLE_APPROVAL_TIMEOUT": "1",
+            "SPINDLE_REMOTE": "0",
         },
     )
 
@@ -61,6 +62,7 @@ async def test_mcp_server_unprotected():
             "SPINDLE_HOME": str(config.home),
             "LLM_ENABLED": "false",
             "SPINDLE_AGENT": "unprotected",
+            "SPINDLE_REMOTE": "0",
         },
     )
     async with stdio_client(server_params) as (read, write):

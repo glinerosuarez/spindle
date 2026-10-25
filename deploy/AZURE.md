@@ -143,6 +143,13 @@ az webapp auth config-version upgrade \
 # globalValidation: requireAuthentication=true, unauthenticatedClientAction=RedirectToLoginPage,
 # excludedPaths: ["/mcp", "/mcp/*", "/site", "/site/*"], disableWWWAuthenticate=true
 
+# Disable unused default identity providers (Apple, GitHub, Google, Twitter, Facebook, MSA)
+# so ONLY Microsoft Entra ID authentication is active:
+az rest --method PUT \
+  --uri "/subscriptions/464df81d-e069-465c-bb17-432e255ddc7c/resourceGroups/spindle-rg/providers/Microsoft.Web/sites/spindle-gateway/config/authsettingsV2?api-version=2022-03-01" \
+  --body @scratch/auth_settings_update.json
+# (where auth_settings_update.json sets identityProviders.apple.enabled=false, etc.)
+
 # 6. Deploy Zip Package
 az webapp deploy \
   --resource-group spindle-rg \
@@ -160,7 +167,7 @@ az webapp restart \
 
 ## 4. Verification & Testing Evidence
 
-### Live Security & Architecture Probes (Post-A1/A2/A4)
+### Live Security & Architecture Probes (Post-A1/A2/A4/A6/A8)
 
 Executed live against `https://spindle-gateway.azurewebsites.net`:
 
@@ -172,6 +179,8 @@ Executed live against `https://spindle-gateway.azurewebsites.net`:
 | **Approval Write (Forged)** (`/approve/1`) | `POST`, `X-MS-CLIENT-PRINCIPAL-NAME: linero@usc.edu` | `HTTP/1.1 401 Unauthorized` | ✅ PASS | Approval cannot be forged from outside without valid authentication. |
 | **Remote MCP (No Key)** (`/mcp`) | No Authorization header | `HTTP/1.1 401 Unauthorized` | ✅ PASS | Excluded from Entra login; requires valid per-agent Bearer token. |
 | **Remote MCP (Wrong Key)** (`/mcp`) | `Authorization: Bearer invalid-key` | `HTTP/1.1 401 Unauthorized` | ✅ PASS | Constant-time SHA-256 key check rejects invalid tokens. |
+| **Remote MCP Fail-Closed** (`/mcp`) | Header read error / unauthenticated in `SPINDLE_REMOTE=1` | Resolves as `__unauthenticated__` (deny-all policy, 0 emails returned) | ✅ PASS | Header extraction failure fails closed to implicit deny-all unknown agent. |
+| **Apple Identity Provider** | `az rest --method GET ...` on authsettingsV2 | `identityProviders.apple.enabled: false` (only Entra enabled) | ✅ PASS | Apple auth template disabled; only Microsoft Entra login accepted. |
 | **API Docs (Swagger)** (`/docs`) | Default GET | `HTTP/1.1 404 Not Found` | ✅ PASS | Swagger UI disabled (`docs_url=None`). |
 | **API Docs (Redoc)** (`/redoc`) | Default GET | `HTTP/1.1 404 Not Found` | ✅ PASS | Redoc disabled (`redoc_url=None`). |
 | **OpenAPI Schema** (`/openapi.json`) | Default GET | `HTTP/1.1 404 Not Found` | ✅ PASS | OpenAPI schema disabled (`openapi_url=None`). |
@@ -191,12 +200,16 @@ Executed live against `https://spindle-gateway.azurewebsites.net`:
   Unprotected Agent Access:        17 / 17 emails exposed (100%)
   Governed Work Agent Access:      7 / 17 emails returned (41.2%)
   Withheld by Policy:              5 emails (Auth & Health denied)
-  Quarantined (Injection Attack):  2 emails (e15 CVE-2025-32711 & e17 hidden text)
-  Held for Human Approval:         0 emails (Financial statements & personal plans)
+  Quarantined (Injection Attack):  2 emails (e15 hidden-text injection modeled on EchoLeak [CVE-2025-32711] & e17 visible-text override attempt)
+  Held for Human Approval:         3 emails (Financial statements & personal plans)
 
 2. DATA EXPOSURE VS REDACTION
   Sensitive Items in Unprotected:  38 unmasked PII tokens exposed to LLM
-  Sensitive Items in Governed:     1 PII tokens masked with deterministic redaction labels
+    - 21 sensitive values (verification code, reset link, account/routing #, DOB, insurance ID, medical records, addresses, phones)
+    - 17 sender email addresses
+  Sensitive Items in Governed:
+    - Search Snippets:             1 PII token masked with deterministic redaction labels
+    - Full Email Bodies (read):    4 PII tokens masked with deterministic redaction labels
 
   Breakdown of Exposed Items in Unprotected Connector:
     - auth_link           : 1
@@ -213,8 +226,13 @@ Executed live against `https://spindle-gateway.azurewebsites.net`:
     - url                 : 2
     - zip                 : 3
 
-  Breakdown of Redacted Items in Governed Agent:
+  Breakdown of Redacted Items in Governed Agent Snippets:
     - [REDACTED:compensation]: 1
+
+  Breakdown of Redacted Items in Governed Agent Full Bodies (read_email):
+    - [REDACTED:compensation]: 2
+    - [REDACTED:phone]: 1
+    - [REDACTED:street_address]: 1
 
 3. REHEARSAL LEAK VERIFICATION
   Item                         Unprotected     Governed       
