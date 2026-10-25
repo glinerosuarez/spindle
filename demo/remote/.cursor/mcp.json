@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "spindle": {
+      "url": "https://spindle-gateway.azurewebsites.net/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${SPINDLE_AGENT_KEY}"
+      }
+    }
+  }
+}

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spindle — Local Privacy Gateway for Autonomous AI Agents</title>
+  <meta name="description" content="Spindle sits between autonomous AI agents and your personal inbox, enforcing deterministic data redaction, prompt injection quarantine, and human approval.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header>
+    <div class="container nav-wrap">
+      <a href="#" class="brand">
+        <span>🧵 Spindle</span>
+        <span class="brand-badge">Azure Edition</span>
+      </a>
+      <div class="nav-links">
+        <a href="#problem">Problem</a>
+        <a href="#how-it-works">Architecture</a>
+        <a href="#comparison">Before & After</a>
+        <a href="#metrics">Measured Impact</a>
+        <a href="#microsoft">Track Criteria</a>
+        <a href="https://github.com/glinerosuarez/spindle" target="_blank" class="btn btn-secondary">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="brand-badge" style="margin-bottom: 1rem; display: inline-block;">Cal Hacks 13.0 Project</div>
+      <h1>The Local-First Privacy Gateway<br>for Autonomous AI Agents</h1>
+      <p class="subtitle">
+        When you give an AI assistant access to your inbox, it reads everything: passwords, salaries, medical records, and family phone numbers. Spindle governs agent access with deterministic policy gates, prompt injection quarantine, and cryptographic PII redaction.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/glinerosuarez/spindle" target="_blank" class="btn btn-primary">View Source Code</a>
+        <a href="#video" class="btn btn-secondary">Watch Demo (Coming Soon)</a>
+      </div>
+    </section>
+
+    <!-- The Problem -->
+    <section id="problem" class="arch-card">
+      <h3>The Problem: All-or-Nothing Agent Access</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        Modern AI agents (Claude Code, Cursor CLI, OpenAI Operator) communicate with tools over the Model Context Protocol (MCP). Standard email connectors provide unconditional read access to every message. If an agent executes a routine inbox search, raw verification OTPs, medical lab results, and corporate salaries are sent unmasked to cloud LLM providers, while invisible HTML prompt injections can silently hijack the agent's instructions.
+      </p>
+    </section>
+
+    <!-- How Spindle Works -->
+    <section id="how-it-works" class="arch-card">
+      <h3>How Spindle Works: The 4-Layer Security Pipeline</h3>
+      <p style="color: var(--text-muted);">
+        Spindle functions as an intelligent reverse proxy. Every tool call from the agent passes through four sequential gates before any data reaches the model context:
+      </p>
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <h4>1. Policy Precedence</h4>
+          <p>Deterministic checks enforce category actions (allow, ask, deny) defined in user-controlled YAML policies.</p>
+        </div>
+        <div class="pipeline-step">
+          <h4>2. Dual-Stage Classifier</h4>
+          <p>Deterministic keyword rules + local SLM classify messages into 8 categories (Work, Personal, Finance, Health, Auth, etc.).</p>
+        </div>
+        <div class="pipeline-step">
+          <h4>3. Injection Guard</h4>
+          <p>HTML parser detects hidden text, 0px fonts, and CSS concealment; 6 regex heuristics identify override attempts.</p>
+        </div>
+        <div class="pipeline-step">
+          <h4>4. 16-Stage Redaction</h4>
+          <p>Masks OTPs, SSNs, credit cards (Luhn-checked), bank accounts, medication names, and salaries before delivery.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Before & After Comparison -->
+    <section id="comparison">
+      <h2 class="section-title">Before & After: Rehearsal Email Audit</h2>
+      <p class="section-desc">Comparing what an AI model observes in raw passthrough vs. Spindle-governed MCP.</p>
+      
+      <div class="comparison-grid">
+        <!-- Before Panel -->
+        <div class="panel danger">
+          <div class="panel-header">
+            <h4>Standard Inbox Connector (Unprotected)</h4>
+            <span class="badge-danger">38 PII Items Exposed</span>
+          </div>
+          <div class="email-sample">
+<span class="leak-highlight">[e17] Okta Password Reset</span>
+Verification code: <span class="leak-highlight">482913</span>
+Reset link: <span class="leak-highlight">https://northwind.okta.com/auth?token=...</span>
+
+<span class="leak-highlight">[e11] TalentBridge Recruiting</span>
+Senior PM role at Lumen. Compensation: <span class="leak-highlight">$185,000 + equity</span>.
+
+<span class="leak-highlight">[e12] Elena Rivera (Mom)</span>
+Are you coming Sunday? Remember we moved to:
+<span class="leak-highlight">742 Evergreen Terrace, Springfield</span>
+Call if you get lost: <span class="leak-highlight">(555) 0192</span>.
+
+<span class="leak-highlight">[e07] Quest Diagnostics</span>
+A1C test result: 5.9% (Pre-diabetes).
+Prescription ordered: <span class="leak-highlight">Metformin 500mg</span>.</div>
+        </div>
+
+        <!-- After Panel -->
+        <div class="panel success">
+          <div class="panel-header">
+            <h4>Spindle Governed Agent (Work Profile)</h4>
+            <span class="badge-success">0 Secrets Leaked</span>
+          </div>
+          <div class="email-sample">
+<span class="safe-highlight">[e17] Withheld by Policy</span>
+Reason: Category "auth" is restricted for work-agent.
+
+<span class="safe-highlight">[e11] TalentBridge Recruiting</span>
+Senior PM role at Lumen. Compensation: <span class="safe-highlight">[REDACTED:compensation]</span>.
+
+<span class="safe-highlight">[e12] Held in Approval Queue</span>
+Reason: Category "personal" requires human confirmation.
+(Address & phone completely shielded from agent context).
+
+<span class="safe-highlight">[e07] Withheld by Policy</span>
+Reason: Category "health" is strictly denied.
+(Lab results and medications never leave gateway).</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Measured Impact -->
+    <section id="metrics" class="arch-card">
+      <h3>Empirically Measured Results (Alex Rivera Inbox Benchmark)</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Measured using <code>scripts/demo_metrics.py</code> across 17 realistic enterprise & personal inbox fixtures:
+      </p>
+      <table class="metrics-table">
+        <thead>
+          <tr>
+            <th>Security & Privacy Metric</th>
+            <th>Standard Unprotected Connector</th>
+            <th>Spindle Privacy Gateway</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Inbox Emails Accessible to Agent</strong></td>
+            <td>17 / 17 (100% full exposure)</td>
+            <td><strong>7 / 17 (41.2% work-only subset)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Withheld Sensitive Categories (Auth / Health)</strong></td>
+            <td>0 (Both delivered in raw text)</td>
+            <td><strong>5 emails withheld completely</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Quarantined Prompt Injections (e15, e17)</strong></td>
+            <td>0 (Delivered to model prompt)</td>
+            <td><strong>2 emails quarantined with audit alert</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Sensitive Tokens Exposed to LLM</strong></td>
+            <td>38 unmasked PII values</td>
+            <td><strong>0 secrets exposed (1 type label redacted)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Sandbox Bypass Resistance (Shell / File Read)</strong></td>
+            <td>N/A (Direct OS shell permitted)</td>
+            <td><strong>3 / 3 bypass attempts blocked (0 leaks)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Injection Follow Rate across Grok Models</strong></td>
+            <td>0/16 followed (Flagged as untrusted)</td>
+            <td><strong>0/16 followed (Quarantined at source)</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Microsoft Track Criteria -->
+    <section id="microsoft" class="criteria-section">
+      <h2 class="section-title">Microsoft Track Criteria Alignment</h2>
+      <p class="section-desc">How Spindle demonstrates prototype-to-production excellence and responsible AI engineering.</p>
+
+      <div class="criteria-grid">
+        <!-- 1. Customer Understanding -->
+        <div class="criteria-card">
+          <h3>🎯 1. Customer Understanding</h3>
+          <p>
+            Users adopting autonomous desktop agents (Claude Code, Cursor CLI, Copilot) frequently hit an unsettling barrier: personal and work contexts collide. As highlighted by privacy leaders and industry research, once private data enters agent context windows, it moves across third-party LLM pipelines with zero governance. Spindle is built for the thousands of developers and professionals who want agent assistance without forfeiting inbox confidentiality.
+          </p>
+        </div>
+
+        <!-- 2. Measurable Usefulness -->
+        <div class="criteria-card">
+          <h3>📊 2. Measurable Usefulness</h3>
+          <p>
+            Spindle's impact is quantifiable: in an inbox of 17 emails, Spindle reduces exposed sensitive tokens from 38 down to 0, shields 100% of medical and auth secrets, and drops unauthorized personal exposure by 58.8%. In rigorous automated testing, permission rules stopped 100% of directory and policy bypass attempts.
+          </p>
+        </div>
+
+        <!-- 3. Path to Production -->
+        <div class="criteria-card">
+          <h3>☁️ 3. Path to Production (Azure)</h3>
+          <p>
+            Spindle separates the <strong>Control Plane</strong> (hosted on Azure App Service with Microsoft Entra ID authentication and Azure Key Vault for per-agent secrets) from the <strong>Data Plane</strong> (local stdio or Streamable-HTTP MCP). Policies are cryptographically signed by the user, and remote agents authenticate via per-agent Bearer tokens.
+          </p>
+        </div>
+
+        <!-- 4. Responsible Design -->
+        <div class="criteria-card">
+          <h3>🛡️ 4. Responsible Design</h3>
+          <p>
+            Spindle adheres to fail-closed, defense-in-depth principles: deterministic regex filters take absolute precedence over probabilistic LLM decisions; an immutable SQLite audit trail preserves the exact text seen by every agent; and all sensitive PII is stripped before any text touches language models.
+          </p>
+        </div>
+
+        <!-- 5. End-to-End Functionality -->
+        <div class="criteria-card" style="grid-column: 1 / -1;">
+          <h3>🚀 5. End-to-End Functionality</h3>
+          <p>
+            Spindle is fully operational today: a complete local gateway running over stdio MCP in Cursor CLI and Claude Code, alongside a hosted cloud deployment on Azure App Service featuring Microsoft Entra ID single sign-on, a real-time policy dashboard, and live human-in-the-loop approval workflows.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Spindle Privacy Gateway — Built for Cal Hacks 13.0 | Licensed under MIT</p>
+    </div>
+  </footer>
+
+</body>
+</html>
