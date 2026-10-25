@@ -52,7 +52,7 @@ flowchart TD
     end
 
     subgraph DataSources ["Mail Data Sources"]
-        Fixtures["Realistic Demo Inbox (17 Fixtures)\nPersona: Alex Rivera (Northwind)"]
+        Fixtures["Realistic Demo Inbox (17 Fixtures)\nPersona: Alex Rivera (freelance consultant)"]
         Gmail["Gmail API (OAuth2)"]
     end
 
@@ -194,7 +194,7 @@ cd demo/after && MCP_TOOL_TIMEOUT=120000 claude
 | **Injection Guard** | **Real** | BeautifulSoup HTML hidden-attribute parser + 6 heuristic regex detectors + LLM confidence signal. |
 | **Dashboard** | **Real** | FastAPI + SQLite WAL + vendored HTMX + CSRF/Token cookie authentication + real-time Outbox monitor. |
 | **Policy Assistant** | **Real** | Anthropic Claude structured parsing + deterministic diff engine with loosening safety gate. |
-| **Inbox Data** | **Realistic Fixtures** | 17 handcrafted emails for fictional persona **Alex Rivera** (`alex.rivera@northwind.io`) at Northwind. Includes realistic prompt injections modeling CVE-2025-32711 and tiny CSS text. Zero personal user data. |
+| **Inbox Data** | **Realistic Fixtures** | 17 handcrafted emails for fictional persona **Alex Rivera** (`alex.rivera.consulting@gmail.com`), a freelance product consultant; Northwind is a client; one personal inbox for clients and life. Includes realistic prompt injections modeling CVE-2025-32711 and tiny CSS text. Zero personal user data. |
 | **Classifier** | **Real** | Local by default via Ollama; cloud Muse is supported for development. Deterministic rule overrides for auth/OTP take precedence. |
 | **Unprotected Agent** | **Simulated** | Agent configured with `passthrough: true` to demonstrate what an ordinary Gmail connector exposes to LLMs. |
 

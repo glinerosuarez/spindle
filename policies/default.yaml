@@ -4,7 +4,7 @@ agents:
     passthrough: true
     max_results: 50
   work-agent:
-    description: "Claude helping with work tasks"
+    description: "Agent helping with client work"
     protection_level: standard
     max_results: 20
 

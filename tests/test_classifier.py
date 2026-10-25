@@ -84,7 +84,7 @@ def test_otp_override_forces_auth_even_when_llm_says_promo():
         id="test_override",
         thread_id="t",
         sender="Discount Store <promo@discountdeals.com>",
-        to="alex.rivera@northwind.io",
+        to="alex.rivera.consulting@gmail.com",
         subject="Special offer just for you",
         date="2026-10-24T00:00:00Z",
         snippet="Your one-time passcode is 948102 to redeem.",
